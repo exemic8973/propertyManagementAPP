@@ -1,0 +1,205 @@
+/* [project]/AI-projects/newPropertyManagement/property-management/src/app/globals.css [app-client] (css) */
+@layer base {
+  html {
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  svg {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+@layer components {
+  .zillow-bg {
+    background: linear-gradient(135deg, #006aff 0%, #0051cc 100%);
+    min-height: 100vh;
+  }
+
+  .zillow-white-bg {
+    background-color: #fff;
+    min-height: 100vh;
+  }
+
+  .zillow-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: all .2s;
+    box-shadow: 0 1px 3px #0000001a;
+  }
+
+  .zillow-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px #0000001a;
+  }
+
+  .zillow-btn-primary {
+    color: #fff;
+    cursor: pointer;
+    background: #006aff;
+    border: none;
+    border-radius: 6px;
+    justify-content: center;
+    align-items: center;
+    padding: .75rem 1.5rem;
+    font-size: .875rem;
+    font-weight: 600;
+    transition: all .2s;
+    display: inline-flex;
+  }
+
+  .zillow-btn-primary:hover {
+    background: #0051cc;
+    transform: translateY(-1px);
+  }
+
+  .zillow-btn-secondary {
+    color: #006aff;
+    cursor: pointer;
+    background: #fff;
+    border: 2px solid #006aff;
+    border-radius: 6px;
+    justify-content: center;
+    align-items: center;
+    padding: .75rem 1.5rem;
+    font-size: .875rem;
+    font-weight: 600;
+    transition: all .2s;
+    display: inline-flex;
+  }
+
+  .zillow-btn-secondary:hover {
+    background: #f8fafc;
+    transform: translateY(-1px);
+  }
+
+  .zillow-input {
+    color: #111827;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    width: 100%;
+    padding: .75rem 1rem;
+    font-size: .875rem;
+    transition: all .2s;
+  }
+
+  .zillow-input::placeholder {
+    color: #6b7280;
+  }
+
+  .zillow-input:focus {
+    border-color: #006aff;
+    outline: none;
+    box-shadow: 0 0 0 3px #006aff1a;
+  }
+
+  .zillow-sidebar {
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+    box-shadow: 2px 0 4px #0000000d;
+  }
+
+  .zillow-nav-item {
+    color: #374151;
+    border-radius: 6px;
+    align-items: center;
+    padding: .75rem 1rem;
+    font-size: .875rem;
+    font-weight: 500;
+    transition: all .2s;
+    display: flex;
+  }
+
+  .zillow-nav-item:hover {
+    color: #006aff;
+    background: #f3f4f6;
+  }
+
+  .zillow-nav-item-active {
+    color: #006aff;
+    background: #eff6ff;
+    border-left: 3px solid #006aff;
+  }
+
+  .zillow-header {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px #0000001a;
+  }
+
+  .zillow-stat-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all .2s;
+    box-shadow: 0 1px 3px #0000001a;
+  }
+
+  .zillow-stat-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px #0000001a;
+  }
+
+  .zillow-badge {
+    border-radius: 9999px;
+    align-items: center;
+    padding: .25rem .75rem;
+    font-size: .75rem;
+    font-weight: 600;
+    display: inline-flex;
+  }
+
+  .zillow-badge-success {
+    color: #065f46;
+    background: #d1fae5;
+  }
+
+  .zillow-badge-warning {
+    color: #92400e;
+    background: #fed7aa;
+  }
+
+  .zillow-badge-error {
+    color: #991b1b;
+    background: #fee2e2;
+  }
+
+  .zillow-badge-info {
+    color: #1e40af;
+    background: #dbeafe;
+  }
+
+  .zillow-text-primary {
+    color: #111827;
+  }
+
+  .zillow-text-secondary {
+    color: #6b7280;
+  }
+
+  .zillow-text-accent {
+    color: #006aff;
+  }
+
+  .zillow-border {
+    border-color: #e5e7eb;
+  }
+
+  .zillow-bg-light {
+    background: #f9fafb;
+  }
+
+  .zillow-logo {
+    color: #fff;
+    background: #006aff;
+    border-radius: 6px;
+    padding: .5rem 1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+}
+
+/*# sourceMappingURL=5ce14_newPropertyManagement_property-management_src_app_globals_css_bad6b30c._.single.css.map*/

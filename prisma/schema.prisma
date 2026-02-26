@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      String   @default("TENANT")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  accounts     Account[]
+  sessions     Session[]
+  tenantLeases Lease[]       @relation("TenantLeases")
+  properties   PropertyEmployee[]
+  maintenanceRequests MaintenanceRequest[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Property {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  type        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  units      Unit[]
+  employees  PropertyEmployee[]
+
+  @@map("properties")
+}
+
+model PropertyEmployee {
+  id         String   @id @default(cuid())
+  propertyId String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  employee  User     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, employeeId])
+  @@map("property_employees")
+}
+
+model Unit {
+  id          String   @id @default(cuid())
+  unitNumber  String
+  bedrooms    Int
+  bathrooms   Float
+  squareFeet  Int?
+  rentAmount  Float
+  isOccupied  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  leases     Lease[]
+  maintenanceRequests MaintenanceRequest[]
+
+  @@unique([propertyId, unitNumber])
+  @@map("units")
+}
+
+model Lease {
+  id              String    @id @default(cuid())
+  startDate       DateTime
+  endDate         DateTime
+  monthlyRent     Float
+  securityDeposit Float?
+  status          String   @default("DRAFT")
+  signatureToken  String?   @unique
+  signedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tenantId String
+  tenant   User   @relation("TenantLeases", fields: [tenantId], references: [id])
+  unitId   String
+  unit     Unit   @relation(fields: [unitId], references: [id])
+
+  payments Payment[]
+
+  @@map("leases")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  amount      Float
+  dueDate     DateTime
+  paidDate    DateTime?
+  method      String?
+  status      String   @default("PENDING")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  leaseId String
+  lease   Lease  @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model MaintenanceRequest {
+  id          String            @id @default(cuid())
+  title       String
+  description String
+  status      String   @default("SUBMITTED")
+  priority    String   @default("MEDIUM")
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  tenantId String
+  tenant   User   @relation(fields: [tenantId], references: [id])
+  unitId   String
+  unit     Unit   @relation(fields: [unitId], references: [id])
+
+  @@map("maintenance_requests")
+}

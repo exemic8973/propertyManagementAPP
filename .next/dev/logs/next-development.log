@@ -1,0 +1,160 @@
+[00:00:01.507] Server  LOG     ✓ Ready in 1043ms
+[00:00:02.109] Server  ERROR   [next-auth][error][JWT_SESSION_ERROR] "\nhttps://next-auth.js.org/errors#jwt_session_error" "decryption operation failed" {}
+[00:00:02.882] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:18.622] Server  ERROR   [next-auth][error][JWT_SESSION_ERROR] "\nhttps://next-auth.js.org/errors#jwt_session_error" "decryption operation failed" {}
+[00:01:18.838] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:33.308] Browser ERROR   uncaughtError: Error: [next-auth]: `useSession` must be wrapped in a <SessionProvider />
+[00:01:51.246] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:01:51.457] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:01:51.463] Server  LOG     ✓ Compiled in 141ms
+[00:01:51.548] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:01:51.594] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:01:51.841] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:51.841] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:01:51.970] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:09.418] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:09.578] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:09.804] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:09.875] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:09.917] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:10.969] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:20.330] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:20.409] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:20.457] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:20.492] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:20.511] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:20.619] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:20.865] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:20.865] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:20.919] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:21.969] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:37.293] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:37.374] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:37.433] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:37.453] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:37.479] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:37.576] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:02:37.784] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:37.841] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:37.896] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:37.970] Browser ERROR   uncaughtError: Error: React Context is unavailable in Server Components
+[00:02:47.835] Server  ERROR   ⨯ Error: React Context is unavailable in Server Components
+[00:03:02.397] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:03:02.398] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:03:02.933] Server  LOG     ✓ Compiled in 192ms
+[00:03:02.984] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:03:02.985] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:03:03.296] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:03:03.303] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:03:58.877] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:05:12.996] Server  LOG     ✓ Compiled in 24ms
+[00:05:18.585] Server  LOG     ✓ Compiled in 22ms
+[00:05:23.091] Server  LOG     ✓ Compiled in 21ms
+[00:05:32.197] Server  WARN    warn(prisma-client) This is the 10th instance of Prisma Client being started. Make sure this is intentional.
+[00:05:35.696] Server  LOG     ✓ Compiled in 24ms
+[00:05:45.707] Server  LOG     ✓ Compiled in 25ms
+[00:06:09.087] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:07:40.366] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:08:39.548] Server  LOG     ✓ Compiled in 59ms
+[00:08:47.058] Server  LOG     ✓ Compiled in 29ms
+[00:08:59.572] Server  LOG     ✓ Compiled in 25ms
+[00:09:06.474] Server  LOG     ✓ Compiled in 34ms
+[00:09:13.693] Server  LOG     ✓ Compiled in 28ms
+[00:09:25.986] Server  LOG     ✓ Compiled in 29ms
+[00:10:40.226] Server  LOG     ✓ Compiled in 36ms
+[00:12:29.357] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:13:47.318] Server  LOG     ✓ Compiled in 18ms
+[00:14:14.942] Browser ERROR   ./AI-projects/newPropertyManagement/property-management/src/app/dashboard/page.tsx:327:1
+Parsing ecmascript source code failed
+  325 |     </ModernDashboardLayout>
+  326 |   )
+> 327 | }
+      | ^
+  328 |
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+[00:14:14.969] Browser ERROR   ./AI-projects/newPropertyManagement/property-management/src/app/dashboard/page.tsx:327:1
+Parsing ecmascript source code failed
+  325 |     </ModernDashboardLayout>
+  326 |   )
+> 327 | }
+      | ^
+  328 |
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+[00:14:14.970] Browser ERROR   ./AI-projects/newPropertyManagement/property-management/src/app/dashboard/page.tsx:327:1
+Parsing ecmascript source code failed
+  325 |     </ModernDashboardLayout>
+  326 |   )
+> 327 | }
+      | ^
+  328 |
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+[00:14:26.247] Browser ERROR   ./AI-projects/newPropertyManagement/property-management/src/app/dashboard/page.tsx:418:8
+Parsing ecmascript source code failed
+  416 |           </div>
+  417 |         </div>
+> 418 |       </div>
+      |        ^^^^^
+  419 |     </ModernDashboardLayout>
+  420 |   )
+  421 | }
+
+Unterminated regexp literal
+[00:14:26.970] Browser ERROR   ./AI-projects/newPropertyManagement/property-management/src/app/dashboard/page.tsx:418:8
+Parsing ecmascript source code failed
+  416 |           </div>
+  417 |         </div>
+> 418 |       </div>
+      |        ^^^^^
+  419 |     </ModernDashboardLayout>
+  420 |   )
+  421 | }
+
+Unterminated regexp literal
+[00:14:26.970] Browser ERROR   ./AI-projects/newPropertyManagement/property-management/src/app/dashboard/page.tsx:418:8
+Parsing ecmascript source code failed
+  416 |           </div>
+  417 |         </div>
+> 418 |       </div>
+      |        ^^^^^
+  419 |     </ModernDashboardLayout>
+  420 |   )
+  421 | }
+
+Unterminated regexp literal
+[00:15:12.540] Server  LOG     ✓ Compiled in 11ms
+[00:15:36.878] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:15:37.939] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:15:38.707] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:16:52.312] Server  LOG     ✓ Compiled in 9ms
+[00:16:57.078] Server  LOG     ✓ Compiled in 6ms
+[00:17:03.435] Server  LOG     ✓ Compiled in 6ms
+[00:17:08.697] Server  LOG     ✓ Compiled in 8ms
+[00:17:13.935] Server  LOG     ✓ Compiled in 8ms
+[00:17:18.794] Server  LOG     ✓ Compiled in 6ms
+[00:17:34.450] Server  LOG     ✓ Compiled in 11ms
+[00:17:45.583] Server  LOG     ✓ Compiled in 11ms
+[00:17:54.035] Server  LOG     ✓ Compiled in 10ms
+[00:21:02.138] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:22:31.662] Server  LOG     ✓ Compiled in 10ms
+[00:23:07.503] Server  LOG     ✓ Compiled in 44ms
+[00:23:57.057] Server  LOG     ✓ Compiled in 10ms
+[00:27:23.566] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:27:59.189] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:29:40.177] Server  LOG     ✓ Compiled in 14ms
+[00:29:45.971] Server  LOG     ✓ Compiled in 14ms
+[00:29:50.917] Server  LOG     ✓ Compiled in 12ms
+[00:29:58.990] Server  LOG     ✓ Compiled in 7ms
+[00:30:04.053] Server  LOG     ✓ Compiled in 9ms
+[00:30:09.015] Server  LOG     ✓ Compiled in 10ms
+[00:30:14.582] Server  LOG     ✓ Compiled in 8ms
+[00:30:26.813] Server  LOG     ✓ Compiled in 8ms
+[00:30:31.969] Server  LOG     ✓ Compiled in 9ms
+[00:30:38.941] Server  LOG     ✓ Compiled in 8ms
+[00:30:43.954] Server  LOG     ✓ Compiled in 9ms
+[00:30:52.487] Server  LOG     ✓ Compiled in 8ms
+[00:31:07.541] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:31:09.413] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:31:10.203] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold

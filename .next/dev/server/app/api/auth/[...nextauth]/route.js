@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/auth/[...nextauth]/route.js")
+R.c("server/chunks/9a2aa_next_9d3ee740._.js")
+R.c("server/chunks/9a2aa_next-auth_0de915e6._.js")
+R.c("server/chunks/9a2aa_openid-client_26939fa9._.js")
+R.c("server/chunks/9a2aa_jose_dist_node_cjs_a277c060._.js")
+R.c("server/chunks/[root-of-the-server]__5c0856f7._.js")
+R.c("server/chunks/[root-of-the-server]__fef26e47._.js")
+R.c("server/chunks/f344c__next-internal_server_app_api_auth_[___nextauth]_route_actions_b2d6d78d.js")
+R.m("[project]/AI-projects/newPropertyManagement/property-management/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/AI-projects/newPropertyManagement/property-management/src/app/api/auth/[...nextauth]/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/AI-projects/newPropertyManagement/property-management/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/AI-projects/newPropertyManagement/property-management/src/app/api/auth/[...nextauth]/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports

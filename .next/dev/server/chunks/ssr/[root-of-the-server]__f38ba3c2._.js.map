@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 14, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/wei89/AI-projects/newPropertyManagement/property-management/src/app/test-simple/page.tsx"],"sourcesContent":["export default function TestSimplePage() {\n  return (\n    <div className=\"min-h-screen gradient-bg p-8\">\n      <div className=\"max-w-4xl mx-auto\">\n        <div className=\"glass-morphism rounded-2xl p-8\">\n          <h1 className=\"text-3xl font-bold text-gray-900\">Simple Test Page</h1>\n          <p className=\"text-gray-600\">This page doesn't use Prisma at all.</p>\n          <div className=\"mt-4\">\n            <a href=\"/\" className=\"btn-primary inline-block\">\n              Back to Home\n            </a>\n          </div>\n        </div>\n      </div>\n    </div>\n  )\n}\n"],"names":[],"mappings":";;;;;;AAAe,SAAS;IACtB,qBACE,mTAAC;QAAI,WAAU;kBACb,cAAA,mTAAC;YAAI,WAAU;sBACb,cAAA,mTAAC;gBAAI,WAAU;;kCACb,mTAAC;wBAAG,WAAU;kCAAmC;;;;;;kCACjD,mTAAC;wBAAE,WAAU;kCAAgB;;;;;;kCAC7B,mTAAC;wBAAI,WAAU;kCACb,cAAA,mTAAC;4BAAE,MAAK;4BAAI,WAAU;sCAA2B;;;;;;;;;;;;;;;;;;;;;;;;;;;AAQ7D"}}]
+}
