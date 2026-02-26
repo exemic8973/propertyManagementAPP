@@ -1,4 +1,9 @@
 import { Pool, PoolConfig } from 'pg';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables first
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const poolConfig: PoolConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -6,9 +11,9 @@ const poolConfig: PoolConfig = {
   database: process.env.DB_NAME || 'property_management',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
-  max: 20, // maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // how long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 2000, // how long to wait when connecting a new client
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 };
 
 const pool = new Pool(poolConfig);

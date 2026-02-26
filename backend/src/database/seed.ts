@@ -1,5 +1,10 @@
 import bcrypt from 'bcrypt';
 import { Pool } from 'pg';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/property_management'

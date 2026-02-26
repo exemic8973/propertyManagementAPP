@@ -1,22 +1,37 @@
 import { Router } from 'express';
+import {
+  getLeases,
+  getLease,
+  createLease,
+  updateLease,
+  deleteLease,
+  signLease,
+  getLeaseStats,
+  initiateEsign,
+  getLeaseForSigning,
+  submitSignature,
+  downloadLeasePDF
+} from '../controllers/leaseController';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// Placeholder routes - will be implemented in Phase 3
-router.get('/', (req, res) => {
-  res.json({ message: 'Get all leases - to be implemented' });
-});
+// Public routes (no auth required for signing)
+router.get('/sign/:token', getLeaseForSigning);
+router.post('/sign/:token', submitSignature);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create lease - to be implemented' });
-});
+// All other routes require authentication
+router.use(authenticateToken);
 
-router.get('/:id', (req, res) => {
-  res.json({ message: 'Get lease by ID - to be implemented' });
-});
-
-router.put('/:id', (req, res) => {
-  res.json({ message: 'Update lease - to be implemented' });
-});
+// Lease routes
+router.get('/', getLeases);
+router.get('/stats', getLeaseStats);
+router.get('/:id', getLease);
+router.get('/:id/pdf', downloadLeasePDF);
+router.post('/', createLease);
+router.post('/:id/initiate-esign', initiateEsign);
+router.put('/:id', updateLease);
+router.delete('/:id', deleteLease);
+router.post('/:id/sign', signLease);
 
 export default router;

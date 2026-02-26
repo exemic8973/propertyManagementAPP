@@ -1,93 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import Navigation from '../components/Navigation';
+import { useAuth } from '../contexts/AuthContext';
+import { propertiesApi, Property } from '../services/api';
 
-interface Property {
-  id: string;
+interface PropertyFormData {
   name: string;
   address: string;
-  type: string;
-  bedrooms: number;
-  bathrooms: number;
-  square_footage: number;
-  rent_amount: number;
-  status: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface User {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  property_type: string;
+  total_units: string;
+  square_footage: string;
+  description: string;
 }
 
 const Properties: React.FC = () => {
+  const { user } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const navigate = useNavigate();
 
-  // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PropertyFormData>({
     name: '',
     address: '',
-    type: 'apartment',
-    bedrooms: '',
-    bathrooms: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    property_type: 'residential',
+    total_units: '1',
     square_footage: '',
-    rent_amount: '',
     description: ''
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    fetchProperties();
+  }, []);
 
-    if (!token || !userData) {
-      navigate('/login');
-      return;
+  const fetchProperties = async () => {
+    setLoading(true);
+    const response = await propertiesApi.getAll();
+    if (response.data) {
+      setProperties(response.data.properties || []);
     }
-
-    try {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      fetchProperties(token);
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-      navigate('/login');
-    }
-  }, [navigate]);
-
-  const fetchProperties = async (token: string) => {
-    try {
-      const response = await fetch('http://localhost:5000/api/properties', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProperties(data.properties || []);
-      } else {
-        console.error('Failed to fetch properties');
-      }
-    } catch (error) {
-      console.error('Error fetching properties:', error);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -95,72 +57,66 @@ const Properties: React.FC = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
+    const response = await propertiesApi.create({
+      name: formData.name,
+      address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      zip_code: formData.zip_code,
+      property_type: formData.property_type,
+      total_units: parseInt(formData.total_units) || 1,
+      square_footage: parseInt(formData.square_footage) || undefined,
+      description: formData.description || undefined
+    });
+    
+    if (response.data) {
+      showNotification('Property created successfully!', 'success');
+      setShowAddModal(false);
+      resetForm();
+      fetchProperties();
+    } else {
+      showNotification(response.error || 'Failed to create property', 'error');
+    }
+  };
 
-    if (!token) return;
-
-    try {
-      const response = await fetch('http://localhost:5000/api/properties', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        showNotification('Property created successfully!', 'success');
-        setShowAddModal(false);
-        setFormData({
-          name: '',
-          address: '',
-          type: 'apartment',
-          bedrooms: '',
-          bathrooms: '',
-          square_footage: '',
-          rent_amount: '',
-          description: ''
-        });
-        fetchProperties(token);
-      } else {
-        const error = await response.json();
-        showNotification(error.error || 'Failed to create property', 'error');
-      }
-    } catch (error) {
-      console.error('Error creating property:', error);
-      showNotification('Failed to create property', 'error');
+  const handleUpdate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedProperty) return;
+    
+    const response = await propertiesApi.update(selectedProperty.id, {
+      name: formData.name,
+      address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      zip_code: formData.zip_code,
+      property_type: formData.property_type,
+      total_units: parseInt(formData.total_units) || 1,
+      square_footage: parseInt(formData.square_footage) || undefined,
+      description: formData.description || undefined
+    });
+    
+    if (response.data) {
+      showNotification('Property updated successfully!', 'success');
+      setShowEditModal(false);
+      setSelectedProperty(null);
+      resetForm();
+      fetchProperties();
+    } else {
+      showNotification(response.error || 'Failed to update property', 'error');
     }
   };
 
   const handleDelete = async (propertyId: string) => {
     if (!window.confirm('Are you sure you want to delete this property?')) return;
-
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await fetch(`http://localhost:5000/api/properties/${propertyId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        showNotification('Property deleted successfully!', 'success');
-        fetchProperties(token);
-      } else {
-        const error = await response.json();
-        showNotification(error.error || 'Failed to delete property', 'error');
-      }
-    } catch (error) {
-      console.error('Error deleting property:', error);
-      showNotification('Failed to delete property', 'error');
+    
+    const response = await propertiesApi.delete(propertyId);
+    if (response.data) {
+      showNotification('Property deleted successfully!', 'success');
+      fetchProperties();
+    } else {
+      showNotification(response.error || 'Failed to delete property', 'error');
     }
   };
 
@@ -174,83 +130,50 @@ const Properties: React.FC = () => {
     setFormData({
       name: property.name,
       address: property.address,
-      type: property.type,
-      bedrooms: property.bedrooms.toString(),
-      bathrooms: property.bathrooms.toString(),
-      square_footage: property.square_footage.toString(),
-      rent_amount: property.rent_amount.toString(),
+      city: property.city,
+      state: property.state,
+      zip_code: property.zip_code,
+      property_type: property.property_type,
+      total_units: property.total_units.toString(),
+      square_footage: property.square_footage?.toString() || '',
       description: property.description || ''
     });
     setShowEditModal(true);
   };
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const token = localStorage.getItem('token');
-
-    if (!token || !selectedProperty) return;
-
-    try {
-      const response = await fetch(`http://localhost:5000/api/properties/${selectedProperty.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        showNotification('Property updated successfully!', 'success');
-        setShowEditModal(false);
-        setSelectedProperty(null);
-        setFormData({
-          name: '',
-          address: '',
-          type: 'apartment',
-          bedrooms: '',
-          bathrooms: '',
-          square_footage: '',
-          rent_amount: '',
-          description: ''
-        });
-        fetchProperties(token);
-      } else {
-        const error = await response.json();
-        showNotification(error.error || 'Failed to update property', 'error');
-      }
-    } catch (error) {
-      console.error('Error updating property:', error);
-      showNotification('Failed to update property', 'error');
-    }
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      address: '',
+      city: '',
+      state: '',
+      zip_code: '',
+      property_type: 'residential',
+      total_units: '1',
+      square_footage: '',
+      description: ''
+    });
   };
 
-  const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
+  const showNotification = (message: string, type: 'success' | 'error') => {
     const notification = document.createElement('div');
     notification.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
     notification.style.zIndex = '9999';
     notification.innerHTML = `
-      <strong>${type === 'success' ? 'Success!' : type === 'error' ? 'Error!' : 'Info!'}</strong> ${message}
+      <strong>${type === 'success' ? 'Success!' : 'Error!'}</strong> ${message}
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     document.body.appendChild(notification);
     setTimeout(() => notification.remove(), 3000);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusColors = {
-      available: 'success',
-      occupied: 'primary',
-      maintenance: 'warning',
-      unavailable: 'secondary'
+  const getPropertyTypeBadge = (type: string) => {
+    const colors: Record<string, string> = {
+      residential: 'primary',
+      commercial: 'success',
+      mixed_use: 'info'
     };
-    return statusColors[status as keyof typeof statusColors] || 'secondary';
+    return colors[type] || 'secondary';
   };
 
   if (loading) {
@@ -265,69 +188,8 @@ const Properties: React.FC = () => {
 
   return (
     <div className="min-vh-100 bg-light">
-      {/* Navigation Header */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div className="container">
-          <a className="navbar-brand" href="/dashboard">
-            🏠 Property Manager
-          </a>
-          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span className="navbar-toggler-icon"></span>
-          </button>
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav me-auto">
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/dashboard' ? 'active' : ''}`} href="/dashboard">
-                  📊 Dashboard
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/properties' ? 'active' : ''}`} href="/properties">
-                  🏠 Properties
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/tenants' ? 'active' : ''}`} href="/tenants">
-                  👥 Tenants
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/leases' ? 'active' : ''}`} href="/leases">
-                  📄 Leases
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/maintenance' ? 'active' : ''}`} href="/maintenance">
-                  🔧 Maintenance
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/payments' ? 'active' : ''}`} href="/payments">
-                  💳 Payments
-                </a>
-              </li>
-            </ul>
-            <ul className="navbar-nav">
-              <li className="nav-item dropdown">
-                <a className="nav-link dropdown-toggle" href="/properties" role="button" data-bs-toggle="dropdown">
-                  👤 {user?.first_name} {user?.last_name}
-                </a>
-                <ul className="dropdown-menu">
-                  <li><a className="dropdown-item" href="/dashboard">📊 Dashboard</a></li>
-                  <li><a className="dropdown-item" href="/properties">🏠 Properties</a></li>
-                  <li><a className="dropdown-item" href="/tenants">👥 Tenants</a></li>
-                  <li><a className="dropdown-item" href="/leases">📄 Leases</a></li>
-                  <li><a className="dropdown-item" href="/maintenance">🔧 Maintenance</a></li>
-                  <li><a className="dropdown-item" href="/payments">💳 Payments</a></li>
-                  <li><hr className="dropdown-divider" /></li>
-                  <li><a className="dropdown-item" href="/login" onClick={handleLogout}>🚪 Logout</a></li>
-                </ul>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </nav>
-
+      <Navigation />
+      
       <div className="container py-5">
         {/* Header */}
         <div className="d-flex justify-content-between align-items-center mb-4">
@@ -340,7 +202,7 @@ const Properties: React.FC = () => {
               className="btn btn-primary"
               onClick={() => setShowAddModal(true)}
             >
-              <i className="bi bi-plus-lg me-2"></i>Add Property
+              + Add Property
             </button>
           )}
         </div>
@@ -374,39 +236,37 @@ const Properties: React.FC = () => {
                 <div className="card h-100">
                   <div className="card-header d-flex justify-content-between align-items-center">
                     <h6 className="card-title mb-0">{property.name}</h6>
-                    <span className={`badge bg-${getStatusBadge(property.status)}`}>
-                      {property.status}
+                    <span className={`badge bg-${property.is_active ? 'success' : 'secondary'}`}>
+                      {property.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                   <div className="card-body">
                     <p className="card-text">
-                      <small className="text-muted">{property.address}</small>
+                      <small className="text-muted">{property.address}, {property.city}, {property.state} {property.zip_code}</small>
                     </p>
                     <div className="row g-2 mb-3">
                       <div className="col-6">
                         <small className="text-muted d-block">Type</small>
-                        <strong>{property.type}</strong>
+                        <span className={`badge bg-${getPropertyTypeBadge(property.property_type)}`}>
+                          {property.property_type.replace('_', ' ')}
+                        </span>
                       </div>
                       <div className="col-6">
-                        <small className="text-muted d-block">Rent</small>
-                        <strong>${property.rent_amount}/mo</strong>
+                        <small className="text-muted d-block">Total Units</small>
+                        <strong>{property.total_units}</strong>
                       </div>
                       <div className="col-6">
-                        <small className="text-muted d-block">Bedrooms</small>
-                        <strong>{property.bedrooms}</strong>
+                        <small className="text-muted d-block">Year Built</small>
+                        <strong>{property.year_built || 'N/A'}</strong>
                       </div>
                       <div className="col-6">
-                        <small className="text-muted d-block">Bathrooms</small>
-                        <strong>{property.bathrooms}</strong>
-                      </div>
-                      <div className="col-12">
-                        <small className="text-muted d-block">Square Footage</small>
-                        <strong>{property.square_footage.toLocaleString()} sq ft</strong>
+                        <small className="text-muted d-block">Sq Ft</small>
+                        <strong>{property.square_footage ? property.square_footage.toLocaleString() : 'N/A'}</strong>
                       </div>
                     </div>
                     {property.description && (
                       <p className="card-text">
-                        <small>{property.description}</small>
+                        <small>{property.description.substring(0, 100)}{property.description.length > 100 ? '...' : ''}</small>
                       </p>
                     )}
                   </div>
@@ -449,11 +309,7 @@ const Properties: React.FC = () => {
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">Add New Property</h5>
-                  <button 
-                    type="button" 
-                    className="btn-close" 
-                    onClick={() => setShowAddModal(false)}
-                  ></button>
+                  <button type="button" className="btn-close" onClick={() => setShowAddModal(false)}></button>
                 </div>
                 <form onSubmit={handleSubmit}>
                   <div className="modal-body">
@@ -473,16 +329,14 @@ const Properties: React.FC = () => {
                         <label className="form-label">Property Type *</label>
                         <select
                           className="form-select"
-                          name="type"
-                          value={formData.type}
+                          name="property_type"
+                          value={formData.property_type}
                           onChange={handleInputChange}
                           required
                         >
-                          <option value="apartment">Apartment</option>
-                          <option value="house">House</option>
-                          <option value="condo">Condo</option>
-                          <option value="townhouse">Townhouse</option>
+                          <option value="residential">Residential</option>
                           <option value="commercial">Commercial</option>
+                          <option value="mixed_use">Mixed Use</option>
                         </select>
                       </div>
                       <div className="col-12">
@@ -496,54 +350,59 @@ const Properties: React.FC = () => {
                           required
                         />
                       </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Bedrooms *</label>
+                      <div className="col-md-4">
+                        <label className="form-label">City *</label>
                         <input
-                          type="number"
+                          type="text"
                           className="form-control"
-                          name="bedrooms"
-                          value={formData.bedrooms}
+                          name="city"
+                          value={formData.city}
                           onChange={handleInputChange}
-                          min="1"
                           required
                         />
                       </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Bathrooms *</label>
+                      <div className="col-md-4">
+                        <label className="form-label">State *</label>
                         <input
-                          type="number"
+                          type="text"
                           className="form-control"
-                          name="bathrooms"
-                          value={formData.bathrooms}
+                          name="state"
+                          value={formData.state}
                           onChange={handleInputChange}
-                          min="1"
-                          step="0.5"
                           required
                         />
                       </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Square Feet *</label>
+                      <div className="col-md-4">
+                        <label className="form-label">Zip Code *</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="zip_code"
+                          value={formData.zip_code}
+                          onChange={handleInputChange}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Total Units</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          name="total_units"
+                          value={formData.total_units}
+                          onChange={handleInputChange}
+                          min="1"
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Square Footage</label>
                         <input
                           type="number"
                           className="form-control"
                           name="square_footage"
                           value={formData.square_footage}
                           onChange={handleInputChange}
-                          min="100"
-                          required
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Rent Amount ($) *</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          name="rent_amount"
-                          value={formData.rent_amount}
-                          onChange={handleInputChange}
                           min="0"
-                          step="0.01"
-                          required
                         />
                       </div>
                       <div className="col-12">
@@ -559,11 +418,7 @@ const Properties: React.FC = () => {
                     </div>
                   </div>
                   <div className="modal-footer">
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
-                      onClick={() => setShowAddModal(false)}
-                    >
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
                       Cancel
                     </button>
                     <button type="submit" className="btn btn-primary">
@@ -583,14 +438,7 @@ const Properties: React.FC = () => {
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">Property Details</h5>
-                  <button 
-                    type="button" 
-                    className="btn-close" 
-                    onClick={() => {
-                      setShowViewModal(false);
-                      setSelectedProperty(null);
-                    }}
-                  ></button>
+                  <button type="button" className="btn-close" onClick={() => { setShowViewModal(false); setSelectedProperty(null); }}></button>
                 </div>
                 <div className="modal-body">
                   <div className="row g-3">
@@ -598,45 +446,21 @@ const Properties: React.FC = () => {
                       <h6>Basic Information</h6>
                       <table className="table table-sm">
                         <tbody>
-                          <tr>
-                            <td><strong>Name:</strong></td>
-                            <td>{selectedProperty.name}</td>
-                          </tr>
-                          <tr>
-                            <td><strong>Address:</strong></td>
-                            <td>{selectedProperty.address}</td>
-                          </tr>
-                          <tr>
-                            <td><strong>Type:</strong></td>
-                            <td>{selectedProperty.type}</td>
-                          </tr>
-                          <tr>
-                            <td><strong>Status:</strong></td>
-                            <td><span className={`badge bg-${getStatusBadge(selectedProperty.status)}`}>{selectedProperty.status}</span></td>
-                          </tr>
+                          <tr><td><strong>Name:</strong></td><td>{selectedProperty.name}</td></tr>
+                          <tr><td><strong>Type:</strong></td><td className="text-capitalize">{selectedProperty.property_type.replace('_', ' ')}</td></tr>
+                          <tr><td><strong>Total Units:</strong></td><td>{selectedProperty.total_units}</td></tr>
+                          <tr><td><strong>Status:</strong></td><td>{selectedProperty.is_active ? 'Active' : 'Inactive'}</td></tr>
                         </tbody>
                       </table>
                     </div>
                     <div className="col-md-6">
-                      <h6>Property Details</h6>
+                      <h6>Location</h6>
                       <table className="table table-sm">
                         <tbody>
-                          <tr>
-                            <td><strong>Bedrooms:</strong></td>
-                            <td>{selectedProperty.bedrooms}</td>
-                          </tr>
-                          <tr>
-                            <td><strong>Bathrooms:</strong></td>
-                            <td>{selectedProperty.bathrooms}</td>
-                          </tr>
-                          <tr>
-                            <td><strong>Square Footage:</strong></td>
-                            <td>{selectedProperty.square_footage.toLocaleString()} sq ft</td>
-                          </tr>
-                          <tr>
-                            <td><strong>Rent:</strong></td>
-                            <td>${selectedProperty.rent_amount}/mo</td>
-                          </tr>
+                          <tr><td><strong>Address:</strong></td><td>{selectedProperty.address}</td></tr>
+                          <tr><td><strong>City:</strong></td><td>{selectedProperty.city}</td></tr>
+                          <tr><td><strong>State:</strong></td><td>{selectedProperty.state}</td></tr>
+                          <tr><td><strong>Zip Code:</strong></td><td>{selectedProperty.zip_code}</td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -649,25 +473,11 @@ const Properties: React.FC = () => {
                   </div>
                 </div>
                 <div className="modal-footer">
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
-                    onClick={() => {
-                      setShowViewModal(false);
-                      setSelectedProperty(null);
-                    }}
-                  >
+                  <button type="button" className="btn btn-secondary" onClick={() => { setShowViewModal(false); setSelectedProperty(null); }}>
                     Close
                   </button>
                   {(user?.role === 'landlord' || user?.role === 'property_manager') && (
-                    <button 
-                      type="button" 
-                      className="btn btn-primary"
-                      onClick={() => {
-                        setShowViewModal(false);
-                        handleEdit(selectedProperty);
-                      }}
-                    >
+                    <button type="button" className="btn btn-primary" onClick={() => { setShowViewModal(false); handleEdit(selectedProperty); }}>
                       Edit Property
                     </button>
                   )}
@@ -684,24 +494,7 @@ const Properties: React.FC = () => {
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">Edit Property</h5>
-                  <button 
-                    type="button" 
-                    className="btn-close" 
-                    onClick={() => {
-                      setShowEditModal(false);
-                      setSelectedProperty(null);
-                      setFormData({
-                        name: '',
-                        address: '',
-                        type: 'apartment',
-                        bedrooms: '',
-                        bathrooms: '',
-                        square_footage: '',
-                        rent_amount: '',
-                        description: ''
-                      });
-                    }}
-                  ></button>
+                  <button type="button" className="btn-close" onClick={() => { setShowEditModal(false); setSelectedProperty(null); resetForm(); }}></button>
                 </div>
                 <form onSubmit={handleUpdate}>
                   <div className="modal-body">
@@ -721,16 +514,14 @@ const Properties: React.FC = () => {
                         <label className="form-label">Property Type *</label>
                         <select
                           className="form-select"
-                          name="type"
-                          value={formData.type}
+                          name="property_type"
+                          value={formData.property_type}
                           onChange={handleInputChange}
                           required
                         >
-                          <option value="apartment">Apartment</option>
-                          <option value="house">House</option>
-                          <option value="condo">Condo</option>
-                          <option value="townhouse">Townhouse</option>
+                          <option value="residential">Residential</option>
                           <option value="commercial">Commercial</option>
+                          <option value="mixed_use">Mixed Use</option>
                         </select>
                       </div>
                       <div className="col-12">
@@ -744,54 +535,59 @@ const Properties: React.FC = () => {
                           required
                         />
                       </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Bedrooms *</label>
+                      <div className="col-md-4">
+                        <label className="form-label">City *</label>
                         <input
-                          type="number"
+                          type="text"
                           className="form-control"
-                          name="bedrooms"
-                          value={formData.bedrooms}
+                          name="city"
+                          value={formData.city}
                           onChange={handleInputChange}
-                          min="1"
                           required
                         />
                       </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Bathrooms *</label>
+                      <div className="col-md-4">
+                        <label className="form-label">State *</label>
                         <input
-                          type="number"
+                          type="text"
                           className="form-control"
-                          name="bathrooms"
-                          value={formData.bathrooms}
+                          name="state"
+                          value={formData.state}
                           onChange={handleInputChange}
-                          min="1"
-                          step="0.5"
                           required
                         />
                       </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Square Feet *</label>
+                      <div className="col-md-4">
+                        <label className="form-label">Zip Code *</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="zip_code"
+                          value={formData.zip_code}
+                          onChange={handleInputChange}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Total Units</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          name="total_units"
+                          value={formData.total_units}
+                          onChange={handleInputChange}
+                          min="1"
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Square Footage</label>
                         <input
                           type="number"
                           className="form-control"
                           name="square_footage"
                           value={formData.square_footage}
                           onChange={handleInputChange}
-                          min="100"
-                          required
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label">Rent Amount ($) *</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          name="rent_amount"
-                          value={formData.rent_amount}
-                          onChange={handleInputChange}
                           min="0"
-                          step="0.01"
-                          required
                         />
                       </div>
                       <div className="col-12">
@@ -807,24 +603,7 @@ const Properties: React.FC = () => {
                     </div>
                   </div>
                   <div className="modal-footer">
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
-                      onClick={() => {
-                        setShowEditModal(false);
-                        setSelectedProperty(null);
-                        setFormData({
-                          name: '',
-                          address: '',
-                          type: 'apartment',
-                          bedrooms: '',
-                          bathrooms: '',
-                          square_footage: '',
-                          rent_amount: '',
-                          description: ''
-                        });
-                      }}
-                    >
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowEditModal(false); setSelectedProperty(null); resetForm(); }}>
                       Cancel
                     </button>
                     <button type="submit" className="btn btn-primary">

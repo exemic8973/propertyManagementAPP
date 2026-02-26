@@ -11,9 +11,9 @@ dotenv.config();
 
 // Import routes
 import authRoutes from './routes/auth';
-import propertyRoutes from './routes/properties-dev';
-import tenantRoutes from './routes/tenants-dev';
-import leaseRoutes from './routes/leases-dev';
+import propertyRoutes from './routes/properties';
+import tenantRoutes from './routes/tenants';
+import leaseRoutes from './routes/leases';
 import maintenanceRoutes from './routes/maintenance';
 import paymentRoutes from './routes/payments';
 import testRoutes from './routes/test';

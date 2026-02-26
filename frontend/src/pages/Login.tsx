@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -7,45 +8,27 @@ const Login: React.FC = () => {
     password: ''
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { login, error, clearError } = useAuth();
+  const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    clearError();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+    const success = await login(formData.email, formData.password);
+    
+    setLoading(false);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
-      } else {
-        setError(data.error || 'Login failed');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    if (success) {
+      navigate('/dashboard');
     }
   };
 
@@ -124,9 +107,9 @@ const Login: React.FC = () => {
                     </div>
 
                     <div>
-                      <a href="#" className="text-primary-custom text-decoration-none">
+                      <button type="button" className="btn btn-link p-0 text-primary-custom text-decoration-none border-0">
                         Forgot your password?
-                      </a>
+                      </button>
                     </div>
                   </div>
 
@@ -147,6 +130,12 @@ const Login: React.FC = () => {
                     </button>
                   </div>
                 </form>
+
+                <div className="mt-4 text-center">
+                  <Link to="/test-accounts" className="text-muted text-decoration-none">
+                    View test accounts
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

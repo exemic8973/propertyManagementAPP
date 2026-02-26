@@ -1,55 +1,109 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import Navigation from '../components/Navigation';
+import { dashboardApi, propertiesApi, tenantsApi, leasesApi, maintenanceApi } from '../services/api';
 
-interface User {
+interface DashboardStats {
+  properties: number;
+  tenants: number;
+  activeLeases: number;
+  maintenanceOpen: number;
+  totalRentCollected: number;
+  occupancyRate: number;
+}
+
+interface RecentActivity {
   id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
+  type: string;
+  message: string;
+  date: string;
 }
 
 const Dashboard: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    properties: 0,
+    tenants: 0,
+    activeLeases: 0,
+    maintenanceOpen: 0,
+    totalRentCollected: 0,
+    occupancyRate: 0
+  });
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    fetchDashboardData();
+  }, []);
 
-    if (!token || !userData) {
-      navigate('/login');
-      return;
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    
+    // Fetch all data in parallel
+    const [, propertiesRes, tenantsRes, leasesRes, maintenanceRes] = await Promise.all([
+      dashboardApi.getStats(),
+      propertiesApi.getAll(),
+      tenantsApi.getAll(),
+      leasesApi.getAll({ status: 'active' }),
+      maintenanceApi.getAll({ status: 'open' })
+    ]);
+
+    // Set stats - always calculate from individual responses for full data
+    {
+      // Calculate from individual responses
+      const properties = propertiesRes.data?.properties || [];
+      const tenants = tenantsRes.data?.tenants || [];
+      const activeLeases = leasesRes.data?.leases || [];
+      const openMaintenance = maintenanceRes.data?.requests || [];
+      
+      const occupiedProperties = properties.filter((p: any) => p.status === 'occupied').length;
+      const totalProperties = properties.length;
+      
+      setStats({
+        properties: totalProperties,
+        tenants: tenants.length,
+        activeLeases: activeLeases.length,
+        maintenanceOpen: openMaintenance.length,
+        totalRentCollected: activeLeases.reduce((sum: number, l: any) => sum + (l.monthly_rent || 0), 0),
+        occupancyRate: totalProperties > 0 ? Math.round((occupiedProperties / totalProperties) * 100) : 0
+      });
+
+      // Build recent activity
+      const activities: RecentActivity[] = [];
+      
+      activeLeases.slice(0, 3).forEach((lease: any) => {
+        activities.push({
+          id: lease.id,
+          type: 'lease',
+          message: `Lease created for ${lease.tenant?.first_name || 'Unknown'} ${lease.tenant?.last_name || ''}`,
+          date: lease.created_at
+        });
+      });
+
+      openMaintenance.slice(0, 3).forEach((req: any) => {
+        activities.push({
+          id: req.id,
+          type: 'maintenance',
+          message: `Maintenance request: ${req.title}`,
+          date: req.created_at
+        });
+      });
+
+      // Sort by date
+      activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setRecentActivity(activities.slice(0, 5));
     }
 
-    try {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-      navigate('/login');
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
+    setLoading(false);
   };
 
-  const handleAddProperty = () => {
-    navigate('/properties');
-  };
-
-  const handleAddTenant = () => {
-    navigate('/tenants');
-  };
-
-  const handleCreateLease = () => {
-    navigate('/leases');
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
   if (loading) {
@@ -62,93 +116,22 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (!user) {
-    return null; // Will redirect
-  }
-
   return (
     <div className="min-vh-100 bg-light">
-      {/* Navigation Header */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div className="container">
-          <a className="navbar-brand" href="/dashboard">
-            🏠 Property Manager
-          </a>
-          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span className="navbar-toggler-icon"></span>
-          </button>
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav me-auto">
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/dashboard' ? 'active' : ''}`} href="/dashboard">
-                  📊 Dashboard
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/properties' ? 'active' : ''}`} href="/properties">
-                  🏠 Properties
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/tenants' ? 'active' : ''}`} href="/tenants">
-                  👥 Tenants
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/leases' ? 'active' : ''}`} href="/leases">
-                  📄 Leases
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/maintenance' ? 'active' : ''}`} href="/maintenance">
-                  🔧 Maintenance
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className={`nav-link ${window.location.pathname === '/payments' ? 'active' : ''}`} href="/payments">
-                  💳 Payments
-                </a>
-              </li>
-            </ul>
-            <ul className="navbar-nav">
-              <li className="nav-item dropdown">
-                <a className="nav-link dropdown-toggle" href="/dashboard" role="button" data-bs-toggle="dropdown">
-                  👤 {user?.first_name} {user?.last_name}
-                </a>
-                <ul className="dropdown-menu">
-                  <li><a className="dropdown-item" href="/dashboard">📊 Dashboard</a></li>
-                  <li><a className="dropdown-item" href="/properties">🏠 Properties</a></li>
-                  <li><a className="dropdown-item" href="/tenants">👥 Tenants</a></li>
-                  <li><a className="dropdown-item" href="/leases">📄 Leases</a></li>
-                  <li><a className="dropdown-item" href="/maintenance">🔧 Maintenance</a></li>
-                  <li><a className="dropdown-item" href="/payments">💳 Payments</a></li>
-                  <li><hr className="dropdown-divider" /></li>
-                  <li><a className="dropdown-item" href="/login" onClick={handleLogout}>🚪 Logout</a></li>
-                </ul>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </nav>
-
+      <Navigation />
+      
       {/* Header */}
       <header className="dashboard-header">
         <div className="container">
           <div className="d-flex justify-content-between align-items-center">
             <div>
               <h1 className="display-6 fw-bold mb-1">Property Management</h1>
-              <p className="mb-0 opacity-75">Welcome back, {user.first_name}!</p>
+              <p className="mb-0 opacity-75">Welcome back, {user?.first_name}!</p>
             </div>
             <div className="d-flex align-items-center gap-3">
               <span className="badge bg-white text-dark">
-                Role: <span className="fw-normal capitalize">{user.role}</span>
+                Role: <span className="fw-normal text-capitalize">{user?.role?.replace('_', ' ')}</span>
               </span>
-              <button
-                onClick={handleLogout}
-                className="btn btn-outline-light"
-              >
-                Logout
-              </button>
             </div>
           </div>
         </div>
@@ -164,13 +147,13 @@ const Dashboard: React.FC = () => {
               <div className="card-body">
                 <div className="d-flex align-items-center">
                   <div className="flex-shrink-0 bg-primary-custom text-white rounded p-3 me-3">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                     </svg>
                   </div>
                   <div className="flex-grow-1">
                     <h6 className="text-muted mb-1">Properties</h6>
-                    <h3 className="h4 mb-0">0</h3>
+                    <h3 className="h4 mb-0">{stats.properties}</h3>
                   </div>
                 </div>
               </div>
@@ -183,13 +166,13 @@ const Dashboard: React.FC = () => {
               <div className="card-body">
                 <div className="d-flex align-items-center">
                   <div className="flex-shrink-0 bg-success text-white rounded p-3 me-3">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                   </div>
                   <div className="flex-grow-1">
                     <h6 className="text-muted mb-1">Tenants</h6>
-                    <h3 className="h4 mb-0">0</h3>
+                    <h3 className="h4 mb-0">{stats.tenants}</h3>
                   </div>
                 </div>
               </div>
@@ -202,13 +185,13 @@ const Dashboard: React.FC = () => {
               <div className="card-body">
                 <div className="d-flex align-items-center">
                   <div className="flex-shrink-0 bg-warning text-white rounded p-3 me-3">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                   </div>
                   <div className="flex-grow-1">
                     <h6 className="text-muted mb-1">Active Leases</h6>
-                    <h3 className="h4 mb-0">0</h3>
+                    <h3 className="h4 mb-0">{stats.activeLeases}</h3>
                   </div>
                 </div>
               </div>
@@ -221,15 +204,58 @@ const Dashboard: React.FC = () => {
               <div className="card-body">
                 <div className="d-flex align-items-center">
                   <div className="flex-shrink-0 bg-danger text-white rounded p-3 me-3">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="flex-grow-1">
-                    <h6 className="text-muted mb-1">Maintenance</h6>
-                    <h3 className="h4 mb-0">0</h3>
+                    <h6 className="text-muted mb-1">Open Requests</h6>
+                    <h3 className="h4 mb-0">{stats.maintenanceOpen}</h3>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Secondary Stats */}
+        <div className="row g-4 mb-5">
+          <div className="col-md-6">
+            <div className="card h-100">
+              <div className="card-body">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="card-title mb-0">Monthly Rent Revenue</h5>
+                  <span className="badge bg-success">Active</span>
+                </div>
+                <h2 className="display-6 fw-bold text-success">
+                  {formatCurrency(stats.totalRentCollected)}
+                </h2>
+                <p className="text-muted mb-0">From {stats.activeLeases} active leases</p>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-6">
+            <div className="card h-100">
+              <div className="card-body">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="card-title mb-0">Occupancy Rate</h5>
+                  <span className={`badge ${stats.occupancyRate >= 80 ? 'bg-success' : stats.occupancyRate >= 50 ? 'bg-warning' : 'bg-danger'}`}>
+                    {stats.occupancyRate}%
+                  </span>
+                </div>
+                <div className="progress" style={{ height: '10px' }}>
+                  <div 
+                    className={`progress-bar ${stats.occupancyRate >= 80 ? 'bg-success' : stats.occupancyRate >= 50 ? 'bg-warning' : 'bg-danger'}`}
+                    role="progressbar" 
+                    style={{ width: `${stats.occupancyRate}%` }}
+                    aria-valuenow={stats.occupancyRate} 
+                    aria-valuemin={0} 
+                    aria-valuemax={100}
+                  ></div>
+                </div>
+                <p className="text-muted mt-2 mb-0">
+                  {stats.occupancyRate}% of properties are occupied
+                </p>
               </div>
             </div>
           </div>
@@ -243,19 +269,19 @@ const Dashboard: React.FC = () => {
           <div className="card-body">
             <div className="row g-3">
               <div className="col-md-4">
-                <button className="btn btn-primary w-100" onClick={handleAddProperty}>
+                <a href="/properties" className="btn btn-primary w-100">
                   Add Property
-                </button>
+                </a>
               </div>
               <div className="col-md-4">
-                <button className="btn btn-secondary w-100" onClick={handleAddTenant}>
+                <a href="/tenants" className="btn btn-secondary w-100">
                   Add Tenant
-                </button>
+                </a>
               </div>
               <div className="col-md-4">
-                <button className="btn btn-success w-100" onClick={handleCreateLease}>
+                <a href="/leases" className="btn btn-success w-100">
                   Create Lease
-                </button>
+                </a>
               </div>
             </div>
           </div>
@@ -267,9 +293,30 @@ const Dashboard: React.FC = () => {
             <h5 className="mb-0">Recent Activity</h5>
           </div>
           <div className="card-body">
-            <div className="text-center text-muted py-5">
-              <p className="mb-0">No recent activity. Start by adding your first property!</p>
-            </div>
+            {recentActivity.length === 0 ? (
+              <div className="text-center text-muted py-5">
+                <p className="mb-0">No recent activity. Start by adding your first property!</p>
+              </div>
+            ) : (
+              <div className="list-group list-group-flush">
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                      <span className={`badge me-2 ${
+                        activity.type === 'lease' ? 'bg-primary' : 
+                        activity.type === 'maintenance' ? 'bg-warning' : 'bg-info'
+                      }`}>
+                        {activity.type}
+                      </span>
+                      {activity.message}
+                    </div>
+                    <small className="text-muted">
+                      {new Date(activity.date).toLocaleDateString()}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>
