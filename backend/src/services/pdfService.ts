@@ -15,35 +15,26 @@ interface LeaseData {
   utilities_included?: boolean;
   parking_spaces?: number;
   status: string;
-  tenant: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone?: string;
-  };
-  property: {
-    id: string;
-    name: string;
-    address: string;
-    city?: string;
-    state?: string;
-    zip_code?: string;
-  };
-  unit?: {
-    id: string;
-    unit_number: string;
-    unit_type: string;
-  } | null;
-  landlord: {
-    id: string;
-    first_name: string;
-    last_name: string;
-  };
+  // Flat structure from SQL joins
+  tenant_first_name: string;
+  tenant_last_name: string;
+  tenant_email: string;
+  tenant_phone?: string;
+  property_name: string;
+  property_address: string;
+  property_city?: string;
+  property_state?: string;
+  property_zip?: string;
+  unit_number?: string;
+  unit_type?: string;
+  landlord_first_name: string;
+  landlord_last_name: string;
   landlord_signed_at?: string;
   landlord_signed_ip?: string;
   tenant_signed_at?: string;
   tenant_signed_ip?: string;
+  tenant_signature?: string;
+  landlord_signature?: string;
 }
 
 const UPLOADS_DIR = path.join(__dirname, '../../uploads/leases');
@@ -100,7 +91,7 @@ export const generateLeasePDF = (lease: LeaseData, res?: Response): Promise<stri
     const addFooter = () => {
       const y = doc.page.height - 40;
       doc.fontSize(7).fillColor('#666666');
-      doc.text(`${lease.property.address} | Landlord: ${lease.landlord.first_name} ${lease.landlord.last_name} | Tenant: ${lease.tenant.first_name} ${lease.tenant.last_name}`, 60, y, { align: 'center' });
+      doc.text(`${lease.property_address} | Landlord: ${lease.landlord_first_name} ${lease.landlord_last_name} | Tenant: ${lease.tenant_first_name} ${lease.tenant_last_name}`, 60, y, { align: 'center' });
       doc.fillColor('#000000');
     };
 
@@ -125,11 +116,11 @@ export const generateLeasePDF = (lease: LeaseData, res?: Response): Promise<stri
     doc.moveDown(0.3);
     doc.text(`This Lease Agreement ("Agreement") is entered into by and between:`);
     doc.moveDown(0.3);
-    doc.text(`LANDLORD: ${lease.landlord.first_name} ${lease.landlord.last_name}`);
+    doc.text(`LANDLORD: ${lease.landlord_first_name} ${lease.landlord_last_name}`);
     doc.moveDown(0.3);
-    doc.text(`TENANT: ${lease.tenant.first_name} ${lease.tenant.last_name}`);
-    doc.text(`Email: ${lease.tenant.email}`);
-    if (lease.tenant.phone) doc.text(`Phone: ${lease.tenant.phone}`);
+    doc.text(`TENANT: ${lease.tenant_first_name} ${lease.tenant_last_name}`);
+    doc.text(`Email: ${lease.tenant_email}`);
+    if (lease.tenant_phone) doc.text(`Phone: ${lease.tenant_phone}`);
     doc.moveDown();
 
     // Section 2: Premises
@@ -137,10 +128,10 @@ export const generateLeasePDF = (lease: LeaseData, res?: Response): Promise<stri
     doc.text('2. PREMISES', { underline: true });
     doc.fontSize(10).font('Helvetica');
     doc.moveDown(0.3);
-    doc.text(`Property: ${lease.property.name}`);
-    doc.text(`Address: ${lease.property.address}`);
-    if (lease.property.city) doc.text(`City: ${lease.property.city}, ${lease.property.state || ''} ${lease.property.zip_code || ''}`);
-    if (lease.unit) doc.text(`Unit: ${lease.unit.unit_number} (${lease.unit.unit_type.replace('_', ' ')})`);
+    doc.text(`Property: ${lease.property_name}`);
+    doc.text(`Address: ${lease.property_address}`);
+    if (lease.property_city) doc.text(`City: ${lease.property_city}, ${lease.property_state || ''} ${lease.property_zip || ''}`);
+    if (lease.unit_number) doc.text(`Unit: ${lease.unit_number} (${(lease.unit_type || '').replace('_', ' ')})`);
     doc.moveDown();
 
     // Section 3: Term
@@ -190,17 +181,30 @@ export const generateLeasePDF = (lease: LeaseData, res?: Response): Promise<stri
     doc.moveDown(0.5);
     doc.fontSize(10).font('Helvetica');
     
-    doc.text(`Name: ${lease.tenant.first_name} ${lease.tenant.last_name}`);
-    doc.text(`Email: ${lease.tenant.email}`);
+    doc.text(`Name: ${lease.tenant_first_name} ${lease.tenant_last_name}`);
+    doc.text(`Email: ${lease.tenant_email}`);
     doc.moveDown(0.5);
     
     if (lease.tenant_signed_at) {
       doc.fontSize(10).font('Helvetica-Oblique');
       doc.text(`Signed: ${formatDate(lease.tenant_signed_at)}`);
       doc.text(`IP Address: ${lease.tenant_signed_ip || 'N/A'}`);
-      doc.moveDown(0.3);
-      doc.fontSize(12).font('Helvetica-Bold');
-      doc.text(`Signature: ${lease.tenant.first_name} ${lease.tenant.last_name}`, { underline: true });
+      doc.moveDown(0.5);
+      
+      // Draw signature image if available
+      if (lease.tenant_signature) {
+        try {
+          const signatureData = lease.tenant_signature.replace(/^data:image\/\w+;base64,/, '');
+          const signatureBuffer = Buffer.from(signatureData, 'base64');
+          doc.image(signatureBuffer, { width: 200, height: 60 });
+        } catch (e) {
+          doc.fontSize(12).font('Helvetica-Bold');
+          doc.text(`Signature: ${lease.tenant_first_name} ${lease.tenant_last_name}`, { underline: true });
+        }
+      } else {
+        doc.fontSize(12).font('Helvetica-Bold');
+        doc.text(`Signature: ${lease.tenant_first_name} ${lease.tenant_last_name}`, { underline: true });
+      }
     } else {
       doc.text('Status: Pending Signature');
     }
@@ -212,16 +216,29 @@ export const generateLeasePDF = (lease: LeaseData, res?: Response): Promise<stri
     doc.moveDown(0.5);
     doc.fontSize(10).font('Helvetica');
     
-    doc.text(`Name: ${lease.landlord.first_name} ${lease.landlord.last_name}`);
+    doc.text(`Name: ${lease.landlord_first_name} ${lease.landlord_last_name}`);
     doc.moveDown(0.5);
     
     if (lease.landlord_signed_at) {
       doc.fontSize(10).font('Helvetica-Oblique');
       doc.text(`Signed: ${formatDate(lease.landlord_signed_at)}`);
       doc.text(`IP Address: ${lease.landlord_signed_ip || 'N/A'}`);
-      doc.moveDown(0.3);
-      doc.fontSize(12).font('Helvetica-Bold');
-      doc.text(`Signature: ${lease.landlord.first_name} ${lease.landlord.last_name}`, { underline: true });
+      doc.moveDown(0.5);
+      
+      // Draw signature image if available
+      if (lease.landlord_signature) {
+        try {
+          const signatureData = lease.landlord_signature.replace(/^data:image\/\w+;base64,/, '');
+          const signatureBuffer = Buffer.from(signatureData, 'base64');
+          doc.image(signatureBuffer, { width: 200, height: 60 });
+        } catch (e) {
+          doc.fontSize(12).font('Helvetica-Bold');
+          doc.text(`Signature: ${lease.landlord_first_name} ${lease.landlord_last_name}`, { underline: true });
+        }
+      } else {
+        doc.fontSize(12).font('Helvetica-Bold');
+        doc.text(`Signature: ${lease.landlord_first_name} ${lease.landlord_last_name}`, { underline: true });
+      }
     } else {
       doc.text('Status: Pending Signature');
     }
@@ -242,9 +259,9 @@ export const generateLeasePDF = (lease: LeaseData, res?: Response): Promise<stri
 
       doc.text('Document Details:', { underline: true });
       doc.text(`Lease Number: ${lease.lease_number}`);
-      doc.text(`Property: ${lease.property.name} - ${lease.property.address}`);
-      doc.text(`Tenant: ${lease.tenant.first_name} ${lease.tenant.last_name} (${lease.tenant.email})`);
-      doc.text(`Landlord: ${lease.landlord.first_name} ${lease.landlord.last_name}`);
+      doc.text(`Property: ${lease.property_name} - ${lease.property_address}`);
+      doc.text(`Tenant: ${lease.tenant_first_name} ${lease.tenant_last_name} (${lease.tenant_email})`);
+      doc.text(`Landlord: ${lease.landlord_first_name} ${lease.landlord_last_name}`);
       doc.moveDown();
 
       doc.text('Signature Audit Trail:', { underline: true });

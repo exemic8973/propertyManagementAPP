@@ -276,12 +276,19 @@ export const createLease = async (req: AuthRequest, res: Response) => {
       if (existingUnit.rows.length > 0) {
         unit_id = existingUnit.rows[0].id;
       } else {
-        // Create a default unit for this property
+        // Get the next unit number for this property
+        const maxUnitResult = await pool.query(
+          `SELECT COALESCE(MAX(CAST(unit_number AS INTEGER)), 0) as max_num FROM units WHERE property_id = $1`,
+          [property_id]
+        );
+        const nextUnitNumber = (parseInt(maxUnitResult.rows[0].max_num) + 1).toString();
+
+        // Create a new unit for this property
         const newUnit = await pool.query(
           `INSERT INTO units (property_id, unit_number, unit_type, rent_amount, bedrooms, bathrooms)
-           VALUES ($1, '1', 'studio', $2, 1, 1)
+           VALUES ($1, $2, 'studio', $3, 1, 1)
            RETURNING id`,
-          [property_id, monthly_rent]
+          [property_id, nextUnitNumber, monthly_rent]
         );
         unit_id = newUnit.rows[0].id;
       }
@@ -315,20 +322,24 @@ export const createLease = async (req: AuthRequest, res: Response) => {
     }
 
     const leaseNumber = generateLeaseNumber();
+    const landlordSignToken = uuidv4();
+    const tenantSignToken = uuidv4();
 
     const result = await pool.query(
       `INSERT INTO leases (
         property_id, unit_id, landlord_id, tenant_id, lease_number,
         start_date, end_date, monthly_rent, security_deposit,
         late_fee_amount, late_fee_grace_period, pet_fee, pet_deposit,
-        utilities_included, parking_spaces, auto_renew, renewal_notice_days, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'pending_signature')
+        utilities_included, parking_spaces, auto_renew, renewal_notice_days, status,
+        landlord_sign_token, tenant_sign_token
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'pending_signature', $18, $19)
       RETURNING *`,
       [
         property_id, unit_id, userId, tenant_id, leaseNumber,
         start_date, end_date, monthly_rent, security_deposit,
         late_fee_amount || 0, late_fee_grace_period || 3, pet_fee || 0, pet_deposit || 0,
-        utilities_included || false, parking_spaces || 0, auto_renew || false, renewal_notice_days || 60
+        utilities_included || false, parking_spaces || 0, auto_renew || false, renewal_notice_days || 60,
+        landlordSignToken, tenantSignToken
       ]
     );
 
@@ -495,19 +506,68 @@ export const deleteLease = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Only allow deletion of draft leases
-    if (lease.status !== 'draft') {
+    // Only allow deletion of non-active leases
+    if (lease.status === 'active') {
       return res.status(400).json({
-        error: 'Cannot delete a lease that is not in draft status. Terminate it instead.'
+        error: 'Cannot delete an active lease. Terminate it first.',
+        currentStatus: lease.status
       });
     }
 
+    console.log(`🗑️ Deleting lease ${id} with status: ${lease.status}`);
     await pool.query('DELETE FROM leases WHERE id = $1', [id]);
 
     res.json({ message: 'Lease deleted successfully' });
   } catch (error) {
     console.error('Delete lease error:', error);
     res.status(500).json({ error: 'Failed to delete lease' });
+  }
+};
+
+// Terminate a lease
+export const terminateLease = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const { termination_reason } = req.body;
+
+    // Check if lease exists and belongs to user
+    const checkResult = await pool.query(
+      'SELECT * FROM leases WHERE id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Lease not found' });
+    }
+
+    const lease = checkResult.rows[0];
+
+    if (lease.landlord_id !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Only allow termination of active leases
+    if (lease.status !== 'active') {
+      return res.status(400).json({
+        error: 'Can only terminate active leases.'
+      });
+    }
+
+    await pool.query(
+      `UPDATE leases SET 
+        status = 'terminated', 
+        termination_date = CURRENT_TIMESTAMP, 
+        termination_reason = $1,
+        updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $2`,
+      [termination_reason || null, id]
+    );
+
+    res.json({ message: 'Lease terminated successfully' });
+  } catch (error) {
+    console.error('Terminate lease error:', error);
+    res.status(500).json({ error: 'Failed to terminate lease' });
   }
 };
 
@@ -633,26 +693,67 @@ export const signLease = async (req: AuthRequest, res: Response) => {
           await sendEmail({ to: info.landlord_email, subject: emailData.subject, html: emailData.html });
         }
 
-        // If fully signed, send confirmation to both parties
+        // If fully signed, generate PDF and send to both parties
         if (isFullySigned) {
-          const confirmEmail = emailTemplates.leaseSigned({
-            recipientName: '',
-            signerName,
-            signerRole,
+          // Get full lease data for PDF
+          const fullLeaseResult = await pool.query(
+            `SELECT l.*, 
+              t.first_name as tenant_first_name, t.last_name as tenant_last_name, t.email as tenant_email, t.phone as tenant_phone,
+              p.name as property_name, p.address as property_address, p.city as property_city, p.state as property_state, p.zip_code as property_zip,
+              u2.unit_number, u2.unit_type,
+              u.first_name as landlord_first_name, u.last_name as landlord_last_name
+             FROM leases l
+             JOIN tenants t ON l.tenant_id = t.id
+             JOIN properties p ON l.property_id = p.id
+             LEFT JOIN units u2 ON l.unit_id = u2.id
+             JOIN users u ON l.landlord_id = u.id
+             WHERE l.id = $1`,
+            [id]
+          );
+
+          const fullLease = fullLeaseResult.rows[0];
+
+          // Generate PDF
+          console.log('📄 Generating PDF for signed lease...');
+          const pdfPath = await generateLeasePDF(fullLease as any);
+          console.log('📄 PDF generated at:', pdfPath);
+          
+          if (pdfPath) {
+            await pool.query('UPDATE leases SET pdf_path = $1 WHERE id = $2', [pdfPath, id]);
+          }
+
+          // Send completion emails with PDF attachment to both parties
+          const tenantEmail = emailTemplates.leaseCompleted({
+            recipientName: `${info.tenant_first_name} ${info.tenant_last_name}`,
             leaseNumber: info.lease_number,
             propertyName: info.property_name,
-            isFullySigned: true
+            propertyAddress: fullLease.property_address,
+            downloadUrl: `${baseUrl}/api/leases/${id}/pdf`
+          });
+          
+          console.log('📧 Sending email to tenant with PDF attachment:', pdfPath ? 'YES' : 'NO');
+          await sendEmail({ 
+            to: info.tenant_email, 
+            subject: `✅ Lease Completed - ${info.lease_number}`, 
+            html: tenantEmail.html,
+            attachments: pdfPath ? [{ filename: `Lease_${info.lease_number}.pdf`, path: pdfPath, contentType: 'application/pdf' }] : undefined
           });
 
-          // Send to tenant
-          const tenantEmail = { ...confirmEmail, to: info.tenant_email };
-          tenantEmail.html = tenantEmail.html.replace('recipientName}', `${info.tenant_first_name} ${info.tenant_last_name}`);
-          await sendEmail({ to: info.tenant_email, subject: `Lease Active - ${info.lease_number}`, html: tenantEmail.html });
-
-          // Send to landlord
-          const landlordEmail = { ...confirmEmail };
-          landlordEmail.html = landlordEmail.html.replace('recipientName}', `${info.landlord_first_name} ${info.landlord_last_name}`);
-          await sendEmail({ to: info.landlord_email, subject: `Lease Active - ${info.lease_number}`, html: landlordEmail.html });
+          const landlordEmail = emailTemplates.leaseCompleted({
+            recipientName: `${info.landlord_first_name} ${info.landlord_last_name}`,
+            leaseNumber: info.lease_number,
+            propertyName: info.property_name,
+            propertyAddress: fullLease.property_address,
+            downloadUrl: `${baseUrl}/api/leases/${id}/pdf`
+          });
+          
+          console.log('📧 Sending email to landlord with PDF attachment:', pdfPath ? 'YES' : 'NO');
+          await sendEmail({ 
+            to: info.landlord_email, 
+            subject: `✅ Lease Completed - ${info.lease_number}`, 
+            html: landlordEmail.html,
+            attachments: pdfPath ? [{ filename: `Lease_${info.lease_number}.pdf`, path: pdfPath, contentType: 'application/pdf' }] : undefined
+          });
         }
       }
     } catch (emailError) {
@@ -923,11 +1024,12 @@ export const submitSignature = async (req: Request, res: Response) => {
           tenant_signed = true,
           tenant_signed_at = $1,
           tenant_signed_ip = $2,
-          link_expires_at = $3,
-          status = $4,
+          tenant_signature = $3,
+          link_expires_at = $4,
+          status = $5,
           updated_at = CURRENT_TIMESTAMP
-         WHERE id = $5`,
-        [now, ip, newExpiration, newStatus, lease.id]
+         WHERE id = $6`,
+        [now, ip, signature, newExpiration, newStatus, lease.id]
       );
 
       // Send email to landlord to sign
@@ -959,10 +1061,11 @@ export const submitSignature = async (req: Request, res: Response) => {
           landlord_signed = true,
           landlord_signed_at = $1,
           landlord_signed_ip = $2,
-          status = $3,
+          landlord_signature = $3,
+          status = $4,
           updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4`,
-        [now, ip, newStatus, lease.id]
+         WHERE id = $5`,
+        [now, ip, signature, newStatus, lease.id]
       );
     }
 
@@ -987,7 +1090,9 @@ export const submitSignature = async (req: Request, res: Response) => {
       const fullLease = fullLeaseResult.rows[0];
 
       // Generate PDF
+      console.log('📄 Generating PDF for signed lease...');
       const pdfPath = await generateLeasePDF(fullLease as any);
+      console.log('📄 PDF generated at:', pdfPath);
       
       if (pdfPath) {
         await pool.query('UPDATE leases SET pdf_path = $1 WHERE id = $2', [pdfPath, lease.id]);
@@ -1004,6 +1109,8 @@ export const submitSignature = async (req: Request, res: Response) => {
         propertyAddress: lease.property_address,
         downloadUrl: `${baseUrl}/api/leases/${lease.id}/pdf`
       });
+      
+      console.log('📧 Sending email to tenant with PDF attachment:', pdfPath ? 'YES' : 'NO');
       await sendEmail({ 
         to: lease.tenant_email, 
         subject: tenantEmail.subject, 
@@ -1019,6 +1126,8 @@ export const submitSignature = async (req: Request, res: Response) => {
         propertyAddress: lease.property_address,
         downloadUrl: `${baseUrl}/api/leases/${lease.id}/pdf`
       });
+      
+      console.log('📧 Sending email to landlord with PDF attachment:', pdfPath ? 'YES' : 'NO');
       await sendEmail({ 
         to: lease.landlord_email, 
         subject: landlordEmail.subject, 
@@ -1039,11 +1148,32 @@ export const submitSignature = async (req: Request, res: Response) => {
   }
 };
 
-// Download PDF (authenticated)
-export const downloadLeasePDF = async (req: AuthRequest, res: Response) => {
+// Download PDF (authenticated or token-based)
+export const downloadLeasePDF = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user!.id;
+    const { token } = req.query;
+    
+    let userId: string | undefined;
+    
+    // Check for token in query param (for new tab viewing)
+    if (token && typeof token === 'string') {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        userId = decoded.userId;
+      } catch (err) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+    } else {
+      // Use authenticated user from middleware
+      const authReq = req as AuthRequest;
+      userId = authReq.user?.id;
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     const result = await pool.query(
       `SELECT l.*, 

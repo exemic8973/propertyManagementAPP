@@ -353,6 +353,12 @@ export const leasesApi = {
     apiRequest<{ message: string; tenantSignUrl: string; expiresAt: string }>(`/leases/${id}/initiate-esign`, {
       method: 'POST',
     }),
+
+  terminate: (id: string, reason?: string) =>
+    apiRequest<{ message: string }>(`/leases/${id}/terminate`, {
+      method: 'POST',
+      body: JSON.stringify({ termination_reason: reason }),
+    }),
 };
 
 // Maintenance API

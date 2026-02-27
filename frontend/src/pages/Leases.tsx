@@ -40,6 +40,9 @@ const Leases: React.FC = () => {
   const [showSignModal, setShowSignModal] = useState(false);
   const [signatureName, setSignatureName] = useState('');
   const [signing, setSigning] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const [formData, setFormData] = useState<LeaseFormData>({
     tenant_id: '',
@@ -152,6 +155,34 @@ const Leases: React.FC = () => {
     }
   };
 
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [terminateReason, setTerminateReason] = useState('');
+  const [terminating, setTerminating] = useState(false);
+
+  const openTerminateModal = (lease: Lease) => {
+    setSelectedLease(lease);
+    setTerminateReason('');
+    setShowTerminateModal(true);
+  };
+
+  const handleTerminateLease = async () => {
+    if (!selectedLease) return;
+    
+    setTerminating(true);
+    const response = await leasesApi.terminate(selectedLease.id, terminateReason);
+    setTerminating(false);
+
+    if (response.data) {
+      showNotification('Lease terminated successfully!', 'success');
+      setShowTerminateModal(false);
+      setTerminateReason('');
+      setSelectedLease(null);
+      fetchData();
+    } else {
+      showNotification(response.error || 'Failed to terminate lease', 'error');
+    }
+  };
+
   const handleSignLease = async () => {
     if (!selectedLease || !signatureName.trim()) {
       showNotification('Please enter your full name to sign', 'error');
@@ -199,6 +230,51 @@ const Leases: React.FC = () => {
     setSelectedLease(lease);
     setSignatureName(`${user?.first_name} ${user?.last_name}`);
     setShowSignModal(true);
+  };
+
+  const handleViewPdf = async (leaseId: string) => {
+    setPdfLoading(true);
+    setShowPdfModal(true);
+    setPdfUrl(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/leases/${leaseId}/pdf?token=${token}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load PDF');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+    } catch (error) {
+      console.error('Error loading PDF:', error);
+      showNotification('Failed to load PDF document', 'error');
+      setShowPdfModal(false);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (pdfUrl && selectedLease) {
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `Lease_${selectedLease.lease_number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleClosePdfModal = () => {
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    }
+    setPdfUrl(null);
+    setShowPdfModal(false);
   };
 
   const handleViewDetails = (lease: Lease) => {
@@ -365,7 +441,23 @@ const Leases: React.FC = () => {
                       >
                         View Details
                       </button>
-                      {lease.status === 'pending_signature' && (
+                      {lease.status === 'active' && (
+                        <button 
+                          className="btn btn-outline-primary btn-sm"
+                          onClick={() => { setSelectedLease(lease); handleViewPdf(lease.id); }}
+                        >
+                          View Document
+                        </button>
+                      )}
+                      {lease.status === 'active' && (user?.role === 'landlord' || user?.role === 'property_manager') && (
+                        <button 
+                          className="btn btn-outline-warning btn-sm"
+                          onClick={() => openTerminateModal(lease)}
+                        >
+                          Terminate
+                        </button>
+                      )}
+                      {(lease.status === 'pending_signature' || lease.status === 'partial') && (
                         <button 
                           className="btn btn-outline-success btn-sm"
                           onClick={() => openSignModal(lease)}
@@ -530,7 +622,7 @@ const Leases: React.FC = () => {
                       </table>
                     </div>
                     {/* Signature Status Section */}
-                    {selectedLease.status === 'pending_signature' && (
+                    {(selectedLease.status === 'pending_signature' || selectedLease.status === 'partial') && (
                       <div className="col-12">
                         <div className="alert alert-warning">
                           <h6 className="alert-heading">⏳ Awaiting Signatures</h6>
@@ -538,11 +630,15 @@ const Leases: React.FC = () => {
                           <div className="row">
                             <div className="col-6">
                               <strong>Landlord:</strong>
-                              <span className="badge bg-secondary ms-2">Pending</span>
+                              <span className={`badge ${selectedLease.status === 'partial' ? 'bg-secondary' : 'bg-secondary'} ms-2`}>
+                                {selectedLease.status === 'partial' ? 'Pending' : 'Pending'}
+                              </span>
                             </div>
                             <div className="col-6">
                               <strong>Tenant:</strong>
-                              <span className="badge bg-secondary ms-2">Pending</span>
+                              <span className={`badge ${selectedLease.status === 'partial' ? 'bg-success' : 'bg-secondary'} ms-2`}>
+                                {selectedLease.status === 'partial' ? 'Signed' : 'Pending'}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -570,7 +666,7 @@ const Leases: React.FC = () => {
                   </div>
                 </div>
                 <div className="modal-footer">
-                  {selectedLease.status === 'pending_signature' && (
+                  {(selectedLease.status === 'pending_signature' || selectedLease.status === 'partial') && (
                     <button 
                       type="button" 
                       className="btn btn-success me-auto"
@@ -737,6 +833,115 @@ const Leases: React.FC = () => {
                       </>
                     ) : (
                       <>✍️ Sign Lease</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PDF Preview Modal */}
+        {showPdfModal && (
+          <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="modal-dialog modal-xl modal-dialog-centered">
+              <div className="modal-content" style={{ height: '90vh' }}>
+                <div className="modal-header">
+                  <h5 className="modal-title">Lease Document - {selectedLease?.lease_number}</h5>
+                  <button type="button" className="btn-close" onClick={handleClosePdfModal}></button>
+                </div>
+                <div className="modal-body p-0" style={{ overflow: 'hidden' }}>
+                  {pdfLoading ? (
+                    <div className="d-flex justify-content-center align-items-center h-100">
+                      <div className="text-center">
+                        <div className="spinner-border text-primary mb-3" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <p className="text-muted">Loading PDF document...</p>
+                      </div>
+                    </div>
+                  ) : pdfUrl ? (
+                    <iframe 
+                      src={pdfUrl} 
+                      style={{ width: '100%', height: '100%', border: 'none' }}
+                      title="Lease PDF Preview"
+                    />
+                  ) : (
+                    <div className="d-flex justify-content-center align-items-center h-100">
+                      <p className="text-muted">Failed to load document</p>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={handleClosePdfModal}
+                  >
+                    Close
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary"
+                    onClick={handleDownloadPdf}
+                    disabled={!pdfUrl}
+                  >
+                    ⬇️ Download PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Terminate Modal */}
+        {showTerminateModal && (
+          <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Terminate Lease</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowTerminateModal(false)}></button>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to terminate this lease?</p>
+                  <p className="text-muted mb-3">
+                    <strong>Lease:</strong> {selectedLease?.lease_number}<br />
+                    <strong>Tenant:</strong> {selectedLease?.tenant.first_name} {selectedLease?.tenant.last_name}<br />
+                    <strong>Property:</strong> {selectedLease?.property.name}
+                  </p>
+                  <div className="mb-3">
+                    <label className="form-label">Termination Reason (optional)</label>
+                    <textarea 
+                      className="form-control" 
+                      rows={3}
+                      value={terminateReason}
+                      onChange={(e) => setTerminateReason(e.target.value)}
+                      placeholder="Enter reason for termination..."
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowTerminateModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-warning"
+                    onClick={handleTerminateLease}
+                    disabled={terminating}
+                  >
+                    {terminating ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Terminating...
+                      </>
+                    ) : (
+                      'Terminate Lease'
                     )}
                   </button>
                 </div>
