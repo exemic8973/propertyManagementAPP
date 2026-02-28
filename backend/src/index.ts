@@ -17,6 +17,9 @@ import leaseRoutes from './routes/leases';
 import maintenanceRoutes from './routes/maintenance';
 import paymentRoutes from './routes/payments';
 import testRoutes from './routes/test';
+import leaseSignRoutes from './routes/lease-sign';
+import templateRoutes from './routes/templates';
+import signingRoutes from './routes/signing';
 
 // Create Express app
 const app = express();
@@ -63,6 +66,9 @@ app.use('/api/leases', leaseRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/test', testRoutes);
+app.use('/api/lease-sign', leaseSignRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api', signingRoutes); // Public signing routes
 
 // 404 handler
 app.use('*', (req, res) => {

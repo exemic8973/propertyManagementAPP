@@ -1,6 +1,59 @@
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Secure token storage utilities
+const TOKEN_KEY = 'pm_auth_token';
+const USER_KEY = 'pm_user_data';
+
+const getToken = (): string | null => {
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+};
+
+const setToken = (token: string, rememberMe: boolean = false): void => {
+  // Use sessionStorage by default for better security
+  // Use localStorage only if user opts for "remember me"
+  if (rememberMe) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  }
+};
+
+const removeToken = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+};
+
+const getStoredUser = (): User | null => {
+  try {
+    const userStr = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+    return userStr ? JSON.parse(userStr) : null;
+  } catch {
+    return null;
+  }
+};
+
+const setStoredUser = (user: User, rememberMe: boolean = false): void => {
+  const userStr = JSON.stringify(user);
+  if (rememberMe) {
+    localStorage.setItem(USER_KEY, userStr);
+  } else {
+    sessionStorage.setItem(USER_KEY, userStr);
+  }
+};
+
+const removeStoredUser = (): void => {
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(USER_KEY);
+};
+
+// Sanitize text to prevent XSS
+const sanitizeText = (text: string): string => {
+  const element = document.createElement('div');
+  element.textContent = text;
+  return element.innerHTML;
+};
+
 // Types
 export interface User {
   id: string;
@@ -76,17 +129,23 @@ export interface Lease {
   parking_spaces?: number;
   auto_renew?: boolean;
   created_at: string;
+  is_esign?: boolean;
+  wizard_data?: any;
   tenant: {
-    id: string;
+    id: string | null;
     first_name: string;
     last_name: string;
     email: string;
     phone?: string;
   };
   property: {
-    id: string;
+    id: string | null;
     name: string;
     address: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    square_feet?: number;
   };
   unit?: {
     id: string;
@@ -197,13 +256,14 @@ export interface ApiResponse<T> {
 // Helper function for API calls
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  requireAuth: boolean = true
 ): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem('token');
+  const token = getToken();
 
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(requireAuth && token && { Authorization: `Bearer ${token}` }),
   };
 
   try {
@@ -215,34 +275,53 @@ async function apiRequest<T>(
       },
     });
 
+    // Handle 401 - token expired or invalid
+    if (response.status === 401 && requireAuth) {
+      removeToken();
+      removeStoredUser();
+      // Don't redirect here - let the calling code handle it
+      return { error: 'Session expired. Please login again.' };
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
       return {
-        error: data.error || 'An error occurred',
+        error: sanitizeText(data.error || 'An error occurred'),
         details: data.details,
       };
     }
 
     return { data };
   } catch (error) {
-    console.error('API request error:', error);
-    return { error: 'Network error. Please try again.' };
+    return { error: 'Network error. Please check your connection.' };
   }
 }
 
 // Auth API
 export const authApi = {
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, rememberMe: boolean = false) =>
     apiRequest<{ user: User; token: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }, false).then(response => {
+      if (response.data) {
+        setToken(response.data.token, rememberMe);
+        setStoredUser(response.data.user, rememberMe);
+      }
+      return response;
     }),
 
-  register: (userData: Partial<User> & { password: string }) =>
+  register: (userData: Partial<User> & { password: string }, rememberMe: boolean = false) =>
     apiRequest<{ user: User; token: string }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
+    }, false).then(response => {
+      if (response.data) {
+        setToken(response.data.token, rememberMe);
+        setStoredUser(response.data.user, rememberMe);
+      }
+      return response;
     }),
 
   getProfile: () => apiRequest<{ user: User }>('/auth/me'),
@@ -251,6 +330,11 @@ export const authApi = {
     apiRequest<{ user: User }>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(userData),
+    }).then(response => {
+      if (response.data) {
+        setStoredUser(response.data.user, !!localStorage.getItem(TOKEN_KEY));
+      }
+      return response;
     }),
 
   changePassword: (current_password: string, new_password: string) =>
@@ -258,7 +342,15 @@ export const authApi = {
       method: 'PUT',
       body: JSON.stringify({ current_password, new_password }),
     }),
+
+  logout: () => {
+    removeToken();
+    removeStoredUser();
+  },
 };
+
+// Export utilities for use in AuthContext
+export { getToken, setToken, removeToken, getStoredUser, setStoredUser, removeStoredUser };
 
 // Properties API
 export const propertiesApi = {
@@ -465,6 +557,301 @@ export const dashboardApi = {
   },
 };
 
+// LeaseSign Types
+export interface WizardData {
+  landlord?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  };
+  tenant?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    dateOfBirth?: string;
+    ssn?: string;
+    emergencyContact?: string;
+    emergencyPhone?: string;
+  };
+  property?: {
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    propertyType?: string;
+    bedrooms?: number;
+    bathrooms?: number;
+    squareFeet?: number;
+    furnished?: boolean;
+  };
+  terms?: {
+    startDate?: string;
+    endDate?: string;
+    leaseType?: string;
+    isRenewal?: boolean;
+  };
+  rent?: {
+    monthlyRent?: number;
+    securityDeposit?: number;
+    petDeposit?: number;
+    petRent?: number;
+    lateFee?: number;
+    gracePeriod?: number;
+    rentDueDay?: number;
+    paymentMethods?: string[];
+    proratedRent?: number;
+  };
+  rules?: {
+    smokingAllowed?: boolean;
+    petAllowed?: boolean;
+    petDetails?: string;
+    guestPolicy?: string;
+    quietHours?: string;
+    subletAllowed?: boolean;
+    alterationsAllowed?: boolean;
+  };
+  additional?: {
+    utilities?: string[];
+    appliances?: string[];
+    parkingSpaces?: number;
+    parkingFee?: number;
+    storageIncluded?: boolean;
+    specialProvisions?: string;
+    leadPaintDisclosure?: boolean;
+    moldDisclosure?: boolean;
+  };
+  additionalTenants?: Array<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    relationship: string;
+  }>;
+  otherOccupants?: Array<{
+    name: string;
+    age: number;
+    relationship: string;
+  }>;
+}
+
+export interface LeaseSignDocument {
+  id: string;
+  lease_number: string;
+  status: 'draft' | 'pending_signature' | 'partial' | 'active' | 'terminated';
+  wizard_data: WizardData;
+  landlord_signed: boolean;
+  tenant_signed: boolean;
+  landlord_signed_at?: string;
+  tenant_signed_at?: string;
+  link_expires_at?: string;
+  created_at: string;
+  updated_at: string;
+  pdf_path?: string;
+  monthly_rent?: number;
+  security_deposit?: number;
+  start_date?: string;
+  end_date?: string;
+}
+
+export interface LeaseTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  template_data: WizardData;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  actor_name: string;
+  actor_email: string;
+  actor_role: string;
+  ip_address?: string;
+  details?: any;
+  created_at: string;
+}
+
+export interface LeaseComment {
+  id: string;
+  author_name: string;
+  author_email: string;
+  author_role: string;
+  comment_text: string;
+  section?: string;
+  resolved: boolean;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message?: string;
+  document_id?: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+// LeaseSign API
+export const leaseSignApi = {
+  // Documents
+  getDocuments: (filters?: { status?: string; search?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.search) params.append('search', filters.search);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<{ documents: LeaseSignDocument[] }>(`/lease-sign/documents${query}`);
+  },
+
+  getDocument: (id: string) =>
+    apiRequest<{ document: LeaseSignDocument; comments: LeaseComment[]; auditLog: AuditLog[] }>(`/lease-sign/documents/${id}`),
+
+  createDocument: (wizardData: WizardData, saveAsTemplate?: boolean, templateName?: string) =>
+    apiRequest<{ document: LeaseSignDocument }>('/lease-sign/documents', {
+      method: 'POST',
+      body: JSON.stringify({ wizardData, saveAsTemplate, templateName }),
+    }),
+
+  updateDocument: (id: string, wizardData: WizardData) =>
+    apiRequest<{ document: LeaseSignDocument }>(`/lease-sign/documents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ wizardData }),
+    }),
+
+  deleteDocument: (id: string) =>
+    apiRequest<{ message: string }>(`/lease-sign/documents/${id}`, {
+      method: 'DELETE',
+    }),
+
+  sendForSignature: (id: string) =>
+    apiRequest<{ message: string; expiresAt: string }>(`/lease-sign/documents/${id}/send`, {
+      method: 'POST',
+    }),
+
+  voidDocument: (id: string, reason?: string) =>
+    apiRequest<{ message: string }>(`/lease-sign/documents/${id}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  getStats: () =>
+    apiRequest<{ stats: { total_documents: number; draft_documents: number; pending_documents: number; completed_documents: number; unreadNotifications: number } }>('/lease-sign/documents/stats'),
+
+  // Comments
+  addComment: (documentId: string, text: string, section?: string) =>
+    apiRequest<{ comment: LeaseComment }>(`/lease-sign/documents/${documentId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ text, section }),
+    }),
+
+  // Notifications
+  getNotifications: () =>
+    apiRequest<{ notifications: Notification[] }>('/lease-sign/notifications'),
+
+  markNotificationRead: (notificationId: string) =>
+    apiRequest<{ message: string }>(`/lease-sign/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    }),
+
+  // PDF - Use secure token via query param for window.open compatibility
+  getPdfUrl: (documentId: string) => {
+    const token = getToken();
+    // Return the API endpoint with token in query string for download
+    return `${API_BASE_URL}/lease-sign/documents/${documentId}/pdf?token=${token}`;
+  },
+  
+  // Fetch PDF as blob with proper auth
+  fetchPdf: async (documentId: string): Promise<Blob | null> => {
+    const token = getToken();
+    if (!token) return null;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/lease-sign/documents/${documentId}/pdf`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) return null;
+      return await response.blob();
+    } catch {
+      return null;
+    }
+  },
+};
+
+// Templates API
+export const templatesApi = {
+  getAll: (search?: string) => {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    return apiRequest<{ templates: LeaseTemplate[] }>(`/templates/templates${params}`);
+  },
+
+  getById: (id: string) =>
+    apiRequest<{ template: LeaseTemplate }>(`/templates/templates/${id}`),
+
+  getDefault: () =>
+    apiRequest<{ template: LeaseTemplate | null }>('/templates/templates/default'),
+
+  create: (name: string, templateData: WizardData, description?: string, isPublic?: boolean) =>
+    apiRequest<{ template: LeaseTemplate }>('/templates/templates', {
+      method: 'POST',
+      body: JSON.stringify({ name, templateData, description, isPublic }),
+    }),
+
+  update: (id: string, data: Partial<{ name: string; description: string; templateData: WizardData; isPublic: boolean }>) =>
+    apiRequest<{ template: LeaseTemplate }>(`/templates/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiRequest<{ message: string }>(`/templates/templates/${id}`, {
+      method: 'DELETE',
+    }),
+
+  duplicate: (id: string) =>
+    apiRequest<{ template: LeaseTemplate }>(`/templates/templates/${id}/duplicate`, {
+      method: 'POST',
+    }),
+
+  setDefault: (id: string | null) =>
+    apiRequest<{ message: string }>(`/templates/templates/${id || 'null'}/default`, {
+      method: 'PUT',
+    }),
+};
+
+// Public signing API (no auth required)
+export const signingApi = {
+  getDocumentForSigning: (token: string) =>
+    apiRequest<{
+      document: LeaseSignDocument;
+      signerType: 'landlord' | 'tenant';
+      signerName: string;
+      wizardData: WizardData;
+      waitingForLandlord?: boolean;
+    }>(`/sign/${token}`),
+
+  submitSignature: (token: string, signature: string) =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+      status: string;
+      isFullySigned: boolean;
+    }>(`/sign/${token}`, {
+      method: 'POST',
+      body: JSON.stringify({ signature }),
+    }),
+};
+
 const api = {
   auth: authApi,
   properties: propertiesApi,
@@ -473,6 +860,9 @@ const api = {
   maintenance: maintenanceApi,
   payments: paymentsApi,
   dashboard: dashboardApi,
+  leaseSign: leaseSignApi,
+  templates: templatesApi,
+  signing: signingApi,
 };
 
 export default api;

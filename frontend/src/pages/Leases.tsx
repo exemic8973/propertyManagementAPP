@@ -238,7 +238,8 @@ const Leases: React.FC = () => {
     setPdfUrl(null);
     
     try {
-      const token = localStorage.getItem('token');
+      // Get token from the correct storage key (same as api.ts)
+      const token = sessionStorage.getItem('pm_auth_token') || localStorage.getItem('pm_auth_token');
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/leases/${leaseId}/pdf?token=${token}`);
       
@@ -285,13 +286,13 @@ const Leases: React.FC = () => {
   const handleEdit = (lease: Lease) => {
     setSelectedLease(lease);
     setFormData({
-      tenant_id: lease.tenant.id,
-      property_id: lease.property.id,
+      tenant_id: lease.tenant?.id || '',
+      property_id: lease.property?.id || '',
       unit_id: lease.unit?.id || '',
       start_date: lease.start_date,
       end_date: lease.end_date,
-      monthly_rent: lease.monthly_rent.toString(),
-      security_deposit: lease.security_deposit.toString(),
+      monthly_rent: lease.monthly_rent?.toString() || '0',
+      security_deposit: lease.security_deposit?.toString() || '0',
       pet_fee: lease.pet_fee?.toString() || '0',
       pet_deposit: lease.pet_deposit?.toString() || '0',
       utilities_included: lease.utilities_included || false,
@@ -407,11 +408,12 @@ const Leases: React.FC = () => {
                   <div className="card-body">
                     <p className="card-text">
                       <small className="text-muted d-block">Tenant</small>
-                      <strong>{lease.tenant.first_name} {lease.tenant.last_name}</strong>
+                      <strong>{lease.tenant?.first_name || 'Unknown'} {lease.tenant?.last_name || ''}</strong>
                     </p>
                     <p className="card-text">
                       <small className="text-muted d-block">Property</small>
-                      <strong>{lease.property.name}</strong>
+                      <strong>{lease.property?.name || lease.property?.address || 'Unknown Property'}</strong>
+                      {lease.property?.square_feet && <span className="text-muted ms-1">({lease.property.square_feet} sq ft)</span>}
                       {lease.unit && <span className="text-muted ms-1">(Unit {lease.unit.unit_number})</span>}
                     </p>
                     <div className="row g-2 mb-3">
@@ -420,8 +422,8 @@ const Leases: React.FC = () => {
                         <strong>{formatCurrency(lease.monthly_rent)}</strong>
                       </div>
                       <div className="col-6">
-                        <small className="text-muted d-block">Duration</small>
-                        <strong>{calculateDuration(lease.start_date, lease.end_date)}</strong>
+                        <small className="text-muted d-block">Security Deposit</small>
+                        <strong>{formatCurrency(lease.security_deposit)}</strong>
                       </div>
                       <div className="col-6">
                         <small className="text-muted d-block">Start Date</small>
@@ -431,6 +433,22 @@ const Leases: React.FC = () => {
                         <small className="text-muted d-block">End Date</small>
                         <strong>{new Date(lease.end_date).toLocaleDateString()}</strong>
                       </div>
+                      {(lease.pet_fee || lease.pet_deposit) && (
+                        <>
+                          {(lease.pet_fee ?? 0) > 0 && (
+                            <div className="col-6">
+                              <small className="text-muted d-block">Pet Fee</small>
+                              <strong>{formatCurrency(lease.pet_fee ?? 0)}</strong>
+                            </div>
+                          )}
+                          {(lease.pet_deposit ?? 0) > 0 && (
+                            <div className="col-6">
+                              <small className="text-muted d-block">Pet Deposit</small>
+                              <strong>{formatCurrency(lease.pet_deposit ?? 0)}</strong>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="card-footer">
@@ -603,9 +621,9 @@ const Leases: React.FC = () => {
                       <h6>Tenant Information</h6>
                       <table className="table table-sm">
                         <tbody>
-                          <tr><td><strong>Name:</strong></td><td>{selectedLease.tenant.first_name} {selectedLease.tenant.last_name}</td></tr>
-                          <tr><td><strong>Email:</strong></td><td>{selectedLease.tenant.email}</td></tr>
-                          <tr><td><strong>Phone:</strong></td><td>{selectedLease.tenant.phone || 'Not provided'}</td></tr>
+                          <tr><td><strong>Name:</strong></td><td>{selectedLease.tenant?.first_name || 'Unknown'} {selectedLease.tenant?.last_name || ''}</td></tr>
+                          <tr><td><strong>Email:</strong></td><td>{selectedLease.tenant?.email || 'Not provided'}</td></tr>
+                          <tr><td><strong>Phone:</strong></td><td>{selectedLease.tenant?.phone || 'Not provided'}</td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -613,19 +631,38 @@ const Leases: React.FC = () => {
                       <h6>Property Information</h6>
                       <table className="table table-sm">
                         <tbody>
-                          <tr><td><strong>Property:</strong></td><td>{selectedLease.property.name}</td></tr>
-                          <tr><td><strong>Address:</strong></td><td>{selectedLease.property.address}</td></tr>
+                          <tr><td><strong>Property:</strong></td><td>{selectedLease.property?.name || 'Unknown Property'}</td></tr>
+                          <tr><td><strong>Address:</strong></td><td>{selectedLease.property?.address || 'Not provided'}{selectedLease.property?.city ? `, ${selectedLease.property.city}` : ''}{selectedLease.property?.state ? `, ${selectedLease.property.state}` : ''}{selectedLease.property?.zip_code ? ` ${selectedLease.property.zip_code}` : ''}</td></tr>
+                          {selectedLease.property?.square_feet && (
+                            <tr><td><strong>Square Feet:</strong></td><td>{selectedLease.property.square_feet.toLocaleString()} sq ft</td></tr>
+                          )}
                           {selectedLease.unit && (
-                            <tr><td><strong>Unit:</strong></td><td>{selectedLease.unit.unit_number} ({selectedLease.unit.unit_type.replace('_', ' ')})</td></tr>
+                            <tr><td><strong>Unit:</strong></td><td>{selectedLease.unit.unit_number} ({selectedLease.unit?.unit_type?.replace('_', ' ') || 'N/A'})</td></tr>
                           )}
                         </tbody>
                       </table>
                     </div>
+                    {/* Pet Fees Section */}
+                    {(Number(selectedLease.pet_fee) > 0 || Number(selectedLease.pet_deposit) > 0) && (
+                      <div className="col-12">
+                        <h6>Pet Fees</h6>
+                        <table className="table table-sm">
+                          <tbody>
+                            {Number(selectedLease.pet_fee) > 0 && (
+                              <tr><td><strong>Pet Fee (Monthly):</strong></td><td>{formatCurrency(Number(selectedLease.pet_fee))}</td></tr>
+                            )}
+                            {Number(selectedLease.pet_deposit) > 0 && (
+                              <tr><td><strong>Pet Deposit:</strong></td><td>{formatCurrency(Number(selectedLease.pet_deposit))}</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                     {/* Signature Status Section */}
                     {(selectedLease.status === 'pending_signature' || selectedLease.status === 'partial') && (
                       <div className="col-12">
                         <div className="alert alert-warning">
-                          <h6 className="alert-heading">⏳ Awaiting Signatures</h6>
+                          <h6 className="alert-heading">�?Awaiting Signatures</h6>
                           <p className="mb-2">This lease requires signatures before it becomes active.</p>
                           <div className="row">
                             <div className="col-6">
@@ -644,25 +681,17 @@ const Leases: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(selectedLease.pet_fee || selectedLease.pet_deposit || selectedLease.parking_spaces) && (
-                      <div className="col-12">
-                        <h6>Additional Details</h6>
-                        <table className="table table-sm">
-                          <tbody>
-                            {selectedLease.pet_fee && selectedLease.pet_fee > 0 && (
-                              <tr><td><strong>Pet Fee:</strong></td><td>{formatCurrency(selectedLease.pet_fee)}</td></tr>
-                            )}
-                            {selectedLease.pet_deposit && selectedLease.pet_deposit > 0 && (
-                              <tr><td><strong>Pet Deposit:</strong></td><td>{formatCurrency(selectedLease.pet_deposit)}</td></tr>
-                            )}
-                            {selectedLease.parking_spaces && selectedLease.parking_spaces > 0 && (
-                              <tr><td><strong>Parking Spaces:</strong></td><td>{selectedLease.parking_spaces}</td></tr>
-                            )}
-                            <tr><td><strong>Utilities Included:</strong></td><td>{selectedLease.utilities_included ? 'Yes' : 'No'}</td></tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    {/* Additional Details */}
+                    <div className="col-12">
+                      <h6>Additional Details</h6>
+                      <table className="table table-sm">
+                        <tbody>
+                          <tr><td><strong>Parking Spaces:</strong></td><td>{selectedLease.parking_spaces || 0}</td></tr>
+                          <tr><td><strong>Utilities Included:</strong></td><td>{selectedLease.utilities_included ? 'Yes' : 'No'}</td></tr>
+                          <tr><td><strong>Auto Renew:</strong></td><td>{selectedLease.auto_renew ? 'Yes' : 'No'}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
                 <div className="modal-footer">

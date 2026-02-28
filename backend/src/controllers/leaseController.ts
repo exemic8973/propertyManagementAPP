@@ -17,31 +17,36 @@ const generateLeaseNumber = (): string => {
   return `LEASE-${year}${month}-${random}`;
 };
 
-// Get all leases
+// Get all leases (includes both traditional and e-sign leases)
 export const getLeases = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const userRole = req.user!.role;
     const { status, property_id } = req.query;
 
+    // Query that includes both traditional leases (with tenant_id/property_id) 
+    // and e-sign leases (with wizard_data but NULL tenant_id/property_id)
     let query = `
       SELECT l.*,
-        t.first_name as tenant_first_name,
-        t.last_name as tenant_last_name,
-        t.email as tenant_email,
-        t.phone as tenant_phone,
-        p.name as property_name,
-        p.address as property_address,
+        COALESCE(t.first_name, l.wizard_data->'tenant'->>'firstName') as tenant_first_name,
+        COALESCE(t.last_name, l.wizard_data->'tenant'->>'lastName') as tenant_last_name,
+        COALESCE(t.email, l.wizard_data->'tenant'->>'email') as tenant_email,
+        COALESCE(t.phone, l.wizard_data->'tenant'->>'phone') as tenant_phone,
+        COALESCE(p.name, l.wizard_data->'property'->>'propertyName') as property_name,
+        COALESCE(p.address, l.wizard_data->'property'->>'address') as property_address,
+        p.city as property_city,
+        p.state as property_state,
+        p.zip_code as property_zip,
         u.unit_number,
         u.unit_type,
         land.first_name as landlord_first_name,
         land.last_name as landlord_last_name
       FROM leases l
-      JOIN tenants t ON l.tenant_id = t.id
-      JOIN properties p ON l.property_id = p.id
+      LEFT JOIN tenants t ON l.tenant_id = t.id
+      LEFT JOIN properties p ON l.property_id = p.id
       LEFT JOIN units u ON l.unit_id = u.id
       JOIN users land ON l.landlord_id = land.id
-      WHERE 1=1
+      WHERE (l.is_template = false OR l.is_template IS NULL)
     `;
     const params: any[] = [];
     let paramCount = 1;
@@ -52,15 +57,16 @@ export const getLeases = async (req: AuthRequest, res: Response) => {
       params.push(userId);
       paramCount++;
     } else if (userRole === 'tenant') {
-      // Get tenant id for this user
+      // Get tenant id for this user, or match by email in wizard_data
       const tenantResult = await pool.query(
-        'SELECT id FROM tenants WHERE user_id = $1',
+        'SELECT id, email FROM tenants WHERE user_id = $1',
         [userId]
       );
       if (tenantResult.rows.length > 0) {
-        query += ` AND l.tenant_id = $${paramCount}`;
+        query += ` AND (l.tenant_id = $${paramCount} OR l.wizard_data->'tenant'->>'email' = $${paramCount + 1})`;
         params.push(tenantResult.rows[0].id);
-        paramCount++;
+        params.push(tenantResult.rows[0].email);
+        paramCount += 2;
       } else {
         return res.json({ leases: [], total: 0 });
       }
@@ -88,28 +94,50 @@ export const getLeases = async (req: AuthRequest, res: Response) => {
     const leases = result.rows.map(row => ({
       id: row.id,
       lease_number: row.lease_number,
-      start_date: row.start_date,
-      end_date: row.end_date,
-      monthly_rent: row.monthly_rent,
-      security_deposit: row.security_deposit,
+      start_date: row.start_date || row.wizard_data?.terms?.startDate,
+      end_date: row.end_date || row.wizard_data?.terms?.endDate,
+      monthly_rent: row.monthly_rent || row.wizard_data?.rent?.monthlyRent,
+      security_deposit: row.security_deposit || row.wizard_data?.rent?.securityDeposit,
       status: row.status,
-      pet_fee: row.pet_fee,
-      pet_deposit: row.pet_deposit,
-      utilities_included: row.utilities_included,
-      parking_spaces: row.parking_spaces,
+      pet_fee: row.pet_fee ?? row.wizard_data?.rent?.petRent ?? 0,
+      pet_deposit: row.pet_deposit ?? row.wizard_data?.rent?.petDeposit ?? 0,
+      utilities_included: row.utilities_included ?? false,
+      parking_spaces: row.parking_spaces ?? row.wizard_data?.additional?.parkingSpaces ?? 0,
       auto_renew: row.auto_renew,
       created_at: row.created_at,
-      tenant: {
+      wizard_data: row.wizard_data,
+      is_esign: !row.tenant_id && row.wizard_data, // Flag for e-sign leases
+      landlord_signed: row.landlord_signed,
+      tenant_signed: row.tenant_signed,
+      tenant: row.tenant_id ? {
         id: row.tenant_id,
         first_name: row.tenant_first_name,
         last_name: row.tenant_last_name,
         email: row.tenant_email,
         phone: row.tenant_phone
+      } : {
+        id: null,
+        first_name: row.tenant_first_name,
+        last_name: row.tenant_last_name,
+        email: row.tenant_email,
+        phone: row.tenant_phone
       },
-      property: {
+      property: row.property_id ? {
         id: row.property_id,
         name: row.property_name,
-        address: row.property_address
+        address: row.property_address,
+        city: row.property_city,
+        state: row.property_state,
+        zip_code: row.property_zip,
+        square_feet: row.wizard_data?.property?.squareFeet
+      } : {
+        id: null,
+        name: row.property_name,
+        address: row.property_address,
+        city: row.wizard_data?.property?.city,
+        state: row.wizard_data?.property?.state,
+        zip_code: row.wizard_data?.property?.zip,
+        square_feet: row.wizard_data?.property?.squareFeet
       },
       unit: row.unit_id ? {
         id: row.unit_id,
@@ -140,19 +168,20 @@ export const getLease = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const userRole = req.user!.role;
 
+    // Use LEFT JOINs to support e-sign leases with NULL tenant_id/property_id
     const result = await pool.query(
       `SELECT l.*,
         json_build_object(
           'id', t.id,
-          'first_name', t.first_name,
-          'last_name', t.last_name,
-          'email', t.email,
-          'phone', t.phone
+          'first_name', COALESCE(t.first_name, l.wizard_data->'tenant'->>'firstName'),
+          'last_name', COALESCE(t.last_name, l.wizard_data->'tenant'->>'lastName'),
+          'email', COALESCE(t.email, l.wizard_data->'tenant'->>'email'),
+          'phone', COALESCE(t.phone, l.wizard_data->'tenant'->>'phone')
         ) as tenant,
         json_build_object(
           'id', p.id,
-          'name', p.name,
-          'address', p.address,
+          'name', COALESCE(p.name, l.wizard_data->'property'->>'propertyName'),
+          'address', COALESCE(p.address, l.wizard_data->'property'->>'address'),
           'city', p.city,
           'state', p.state,
           'zip_code', p.zip_code
@@ -171,8 +200,8 @@ export const getLease = async (req: AuthRequest, res: Response) => {
           'email', land.email
         ) as landlord
       FROM leases l
-      JOIN tenants t ON l.tenant_id = t.id
-      JOIN properties p ON l.property_id = p.id
+      LEFT JOIN tenants t ON l.tenant_id = t.id
+      LEFT JOIN properties p ON l.property_id = p.id
       LEFT JOIN units u ON l.unit_id = u.id
       JOIN users land ON l.landlord_id = land.id
       WHERE l.id = $1`,
@@ -192,15 +221,32 @@ export const getLease = async (req: AuthRequest, res: Response) => {
 
     if (userRole === 'tenant') {
       const tenantResult = await pool.query(
-        'SELECT id FROM tenants WHERE user_id = $1',
+        'SELECT id, email FROM tenants WHERE user_id = $1',
         [userId]
       );
-      if (tenantResult.rows.length === 0 || tenantResult.rows[0].id !== lease.tenant_id) {
+      const tenantId = tenantResult.rows[0]?.id;
+      const tenantEmail = tenantResult.rows[0]?.email;
+      
+      // Check if tenant matches via ID or email in wizard_data
+      const hasAccess = lease.tenant_id === tenantId || 
+        (lease.wizard_data?.tenant?.email === tenantEmail);
+      
+      if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
 
-    res.json({ lease });
+    // Add computed fields for e-sign leases
+    const responseLease = {
+      ...lease,
+      is_esign: !lease.tenant_id && lease.wizard_data,
+      start_date: lease.start_date || lease.wizard_data?.terms?.startDate,
+      end_date: lease.end_date || lease.wizard_data?.terms?.endDate,
+      monthly_rent: lease.monthly_rent || lease.wizard_data?.rent?.monthlyRent,
+      security_deposit: lease.security_deposit || lease.wizard_data?.rent?.securityDeposit
+    };
+
+    res.json({ lease: responseLease });
   } catch (error) {
     console.error('Get lease error:', error);
     res.status(500).json({ error: 'Failed to get lease' });

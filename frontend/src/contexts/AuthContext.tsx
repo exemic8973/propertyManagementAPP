@@ -1,14 +1,30 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authApi, User } from '../services/api';
+import { authApi, User, getToken, getStoredUser, removeStoredUser } from '../services/api';
+
+// Internal token management
+const TOKEN_KEY = 'pm_auth_token';
+
+const setTokenInternal = (token: string, rememberMe: boolean = false): void => {
+  if (rememberMe) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  }
+};
+
+const removeTokenInternal = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+};
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (userData: Partial<User> & { password: string }) => Promise<boolean>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>;
+  register: (userData: Partial<User> & { password: string }, rememberMe?: boolean) => Promise<boolean>;
   logout: () => void;
   updateProfile: (userData: Partial<User>) => Promise<boolean>;
   clearError: () => void;
@@ -23,55 +39,54 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setTokenState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Initialize auth state from localStorage
+  // Initialize auth state from storage
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    const storedToken = getToken();
+    const storedUser = getStoredUser();
 
     if (storedToken && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUser(parsedUser);
-      } catch (e) {
-        console.error('Error parsing stored user:', e);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+      setTokenState(storedToken);
+      setUser(storedUser);
     }
     setLoading(false);
   }, []);
 
-  // Verify token validity on mount
+  // Verify token validity periodically
   useEffect(() => {
     const verifyToken = async () => {
-      if (token && user) {
+      if (token) {
         const response = await authApi.getProfile();
         if (response.error) {
-          logout();
+          // Token invalid - clear state
+          setUser(null);
+          setTokenState(null);
+          removeTokenInternal();
+          removeStoredUser();
+          navigate('/login');
         } else if (response.data) {
           setUser(response.data.user);
-          localStorage.setItem('user', JSON.stringify(response.data.user));
         }
       }
     };
     
     if (token) {
       verifyToken();
+      // Verify token every 5 minutes
+      const interval = setInterval(verifyToken, 5 * 60 * 1000);
+      return () => clearInterval(interval);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, navigate]);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string, rememberMe: boolean = false): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
-    const response = await authApi.login(email, password);
+    const response = await authApi.login(email, password, rememberMe);
 
     if (response.error) {
       setError(response.error);
@@ -82,9 +97,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (response.data) {
       const { user: userData, token: authToken } = response.data;
       setUser(userData);
-      setToken(authToken);
-      localStorage.setItem('token', authToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+      setTokenState(authToken);
+      // Store token using internal function
+      setTokenInternal(authToken, rememberMe);
       setLoading(false);
       return true;
     }
@@ -93,11 +108,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return false;
   }, []);
 
-  const register = useCallback(async (userData: Partial<User> & { password: string }): Promise<boolean> => {
+  const register = useCallback(async (userData: Partial<User> & { password: string }, rememberMe: boolean = false): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
-    const response = await authApi.register(userData);
+    const response = await authApi.register(userData, rememberMe);
 
     if (response.error) {
       setError(response.error);
@@ -106,11 +121,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     if (response.data) {
-      const { user: userData, token: authToken } = response.data;
-      setUser(userData);
-      setToken(authToken);
-      localStorage.setItem('token', authToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+      const { user: respUser, token: authToken } = response.data;
+      setUser(respUser);
+      setTokenState(authToken);
+      setTokenInternal(authToken, rememberMe);
       setLoading(false);
       return true;
     }
@@ -121,9 +135,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = useCallback(() => {
     setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    setTokenState(null);
+    removeTokenInternal();
+    removeStoredUser();
     navigate('/login');
   }, [navigate]);
 
@@ -141,7 +155,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (response.data) {
       setUser(response.data.user);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
       setLoading(false);
       return true;
     }
